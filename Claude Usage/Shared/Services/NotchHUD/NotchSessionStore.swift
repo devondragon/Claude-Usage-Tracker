@@ -75,13 +75,16 @@ final class NotchSessionStore: ObservableObject {
                 session.hasRecentError = true
             }
 
-        case let .stop(id, cwd):
+        case let .stop(id, cwd, backgroundWork):
             upsert(id: id, cwd: cwd) { session in
-                session.status = .idle
-                session.currentTask = nil
+                // A turn that ends with subagents still running is waiting on
+                // them, so it keeps reading as working until the Stop that
+                // follows their return.
+                session.status = backgroundWork ? .thinking : .idle
+                session.currentTask = backgroundWork ? "notch.task.subagent".localized : nil
             }
 
-        case let .notification(id, cwd, message):
+        case let .notification(id, cwd, message, isIdleNudge):
             upsert(id: id, cwd: cwd) { session in
                 // A notification arriving while the session is already .idle is
                 // Claude Code's "waiting for your input" nudge, fired ~60s after
@@ -90,7 +93,9 @@ final class NotchSessionStore: ObservableObject {
                 // session and hold the Mac awake until the terminal closes. A
                 // genuine permission prompt arrives mid-work (the session is
                 // never .idle then) and still raises the cue.
-                guard session.status != .idle else { return }
+                // The same nudge reaches a session paused on background
+                // work, which is not idle; there it is told apart by type.
+                guard session.status != .idle, !isIdleNudge else { return }
                 session.status = .needsAttention
                 if let message = message, !message.isEmpty {
                     session.currentTask = String(message.prefix(80))

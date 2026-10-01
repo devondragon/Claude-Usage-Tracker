@@ -22,14 +22,23 @@ enum NotchHookEvent: Equatable {
     case preToolUse(id: String, cwd: String?, status: SessionStatus, task: String)
     case postToolUse(id: String, cwd: String?)
     case toolFailure(id: String, cwd: String?)
-    case stop(id: String, cwd: String? = nil)
-    case notification(id: String, cwd: String?, message: String?)
+    /// `backgroundWork` is true when the turn ended with agent work still in
+    /// flight: the session is paused until that work wakes it, not finished.
+    case stop(id: String, cwd: String? = nil, backgroundWork: Bool = false)
+    /// `isIdleNudge` marks Claude Code's "waiting for your input" reminder, as
+    /// opposed to a prompt that actually blocks the session.
+    case notification(id: String, cwd: String?, message: String?, isIdleNudge: Bool = false)
 
     /// The hook URL path suffix each event is received on (after the token segment).
     static let pathSuffixes: [String] = [
         "session-start", "session-end", "user-prompt-submit", "pre-tool-use",
         "post-tool-use", "post-tool-use-failure", "stop", "notification",
     ]
+
+    /// `background_tasks` types that mean an agent is still working for the
+    /// session. Shells and monitors are left out: a dev server or a log tail
+    /// runs for as long as the session does and would never read as done.
+    static let agentTaskTypes: Set<String> = ["subagent", "workflow", "teammate"]
 
     /// Builds an event from a hook path suffix + parsed JSON payload.
     /// Returns nil for unknown paths or payloads without a session id.
@@ -57,9 +66,12 @@ enum NotchHookEvent: Equatable {
         case "post-tool-use-failure":
             return .toolFailure(id: sessionId, cwd: cwd)
         case "stop":
-            return .stop(id: sessionId, cwd: cwd)
+            let tasks = payload["background_tasks"] as? [[String: Any]] ?? []
+            let backgroundWork = tasks.contains { agentTaskTypes.contains($0["type"] as? String ?? "") }
+            return .stop(id: sessionId, cwd: cwd, backgroundWork: backgroundWork)
         case "notification":
-            return .notification(id: sessionId, cwd: cwd, message: payload["message"] as? String)
+            return .notification(id: sessionId, cwd: cwd, message: payload["message"] as? String,
+                                 isIdleNudge: payload["notification_type"] as? String == "idle_prompt")
         default:
             return nil
         }
