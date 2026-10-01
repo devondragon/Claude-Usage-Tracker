@@ -16,9 +16,11 @@ import Foundation
 /// that never fires SessionStart) still gets named after its project instead
 /// of falling back to a bare session id.
 enum NotchHookEvent: Equatable {
-    case sessionStart(id: String, cwd: String?)
+    /// `title` is the session's custom title; Claude Code sends it on the two
+    /// events below, and only when one has been set.
+    case sessionStart(id: String, cwd: String?, title: String? = nil)
     case sessionEnd(id: String)
-    case userPromptSubmit(id: String, cwd: String?, prompt: String?)
+    case userPromptSubmit(id: String, cwd: String?, prompt: String?, title: String? = nil)
     case preToolUse(id: String, cwd: String?, status: SessionStatus, task: String)
     case postToolUse(id: String, cwd: String?)
     case toolFailure(id: String, cwd: String?)
@@ -47,14 +49,15 @@ enum NotchHookEvent: Equatable {
             return nil
         }
         let cwd = payload["cwd"] as? String
+        let title = payload["session_title"] as? String
 
         switch pathSuffix {
         case "session-start":
-            return .sessionStart(id: sessionId, cwd: cwd)
+            return .sessionStart(id: sessionId, cwd: cwd, title: title)
         case "session-end":
             return .sessionEnd(id: sessionId)
         case "user-prompt-submit":
-            return .userPromptSubmit(id: sessionId, cwd: cwd, prompt: payload["prompt"] as? String)
+            return .userPromptSubmit(id: sessionId, cwd: cwd, prompt: payload["prompt"] as? String, title: title)
         case "pre-tool-use":
             let activity = ToolActivityMapper.map(
                 toolName: payload["tool_name"] as? String ?? "",

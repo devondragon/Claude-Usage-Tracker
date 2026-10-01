@@ -138,6 +138,15 @@ final class NotchHookEventTests: XCTestCase {
                        .notification(id: "s", cwd: nil, message: "waiting"))
     }
 
+    func testSessionTitleDecodesFromStartAndPrompt() {
+        XCTAssertEqual(NotchHookEvent.from(pathSuffix: "session-start",
+                                           payload: ["session_id": "s", "session_title": "auth refactor"]),
+                       .sessionStart(id: "s", cwd: nil, title: "auth refactor"))
+        XCTAssertEqual(NotchHookEvent.from(pathSuffix: "user-prompt-submit",
+                                           payload: ["session_id": "s", "prompt": "hi", "session_title": "auth refactor"]),
+                       .userPromptSubmit(id: "s", cwd: nil, prompt: "hi", title: "auth refactor"))
+    }
+
     func testStopReportsBackgroundWorkOnlyForAgentTasks() {
         func stop(_ types: [String]) -> NotchHookEvent? {
             NotchHookEvent.from(pathSuffix: "stop", payload: [
@@ -217,6 +226,21 @@ final class NotchSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions[0].status, .idle)
         store.apply(.sessionEnd(id: "s1"))
         XCTAssertTrue(store.sessions.isEmpty)
+    }
+
+    func testCustomTitleNamesTheSessionAndFollowsARename() {
+        store.apply(.sessionStart(id: "s1", cwd: "/Users/dev/api-server"))
+        XCTAssertEqual(store.sessions[0].displayName, "api-server")
+
+        store.apply(.userPromptSubmit(id: "s1", cwd: "/Users/dev/api-server", prompt: "hi", title: "auth refactor"))
+        XCTAssertEqual(store.sessions[0].displayName, "auth refactor")
+
+        // Events without a title leave the one already known in place.
+        store.apply(.userPromptSubmit(id: "s1", cwd: "/Users/dev/api-server", prompt: "more"))
+        XCTAssertEqual(store.sessions[0].displayName, "auth refactor")
+
+        store.apply(.sessionStart(id: "s2", cwd: "/Users/dev/api-server", title: "billing bug"))
+        XCTAssertEqual(store.sessions[1].displayName, "billing bug")
     }
 
     func testStopWithBackgroundWorkStaysWorkingUntilAFinalStop() {

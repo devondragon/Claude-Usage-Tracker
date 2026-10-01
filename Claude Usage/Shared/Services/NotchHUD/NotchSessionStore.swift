@@ -40,19 +40,22 @@ final class NotchSessionStore: ObservableObject {
 
     func apply(_ event: NotchHookEvent) {
         switch event {
-        case let .sessionStart(id, cwd):
+        case let .sessionStart(id, cwd, title):
             upsert(id: id, cwd: cwd) { session in
                 session.status = .thinking
                 session.currentTask = nil
+                if let title = title, !title.isEmpty { session.title = title }
             }
 
         case let .sessionEnd(id):
             sessions.removeAll { $0.id == id }
 
-        case let .userPromptSubmit(id, cwd, prompt):
+        case let .userPromptSubmit(id, cwd, prompt, title):
             upsert(id: id, cwd: cwd) { session in
                 session.status = .thinking
                 session.currentTask = nil
+                // Picks up a /rename made mid-session on the next prompt.
+                if let title = title, !title.isEmpty { session.title = title }
                 if let prompt = prompt, !prompt.isEmpty {
                     session.lastUserPrompt = String(prompt.prefix(80))
                 }
