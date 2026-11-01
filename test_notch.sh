@@ -5,7 +5,7 @@
 
 set -u
 PORT=19847
-TOKEN=$(defaults read HamedElfayome.Claude-Usage notchHUDPathToken 2>/dev/null)
+TOKEN=$(defaults read com.devondragon.ClaudeUsage notchHUDPathToken 2>/dev/null)
 if [ -z "${TOKEN}" ]; then echo "no notchHUDPathToken in defaults — enable the HUD once first"; exit 1; fi
 BASE="http://127.0.0.1:${PORT}/hook/${TOKEN}"
 SESSION="movie-$$"

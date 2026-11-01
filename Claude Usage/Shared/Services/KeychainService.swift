@@ -16,8 +16,8 @@ class KeychainService {
 
     /// Keychain item identifiers
     enum KeychainKey: String {
-        case apiSessionKey = "com.claudeusagetracker.api-session-key"
-        case claudeSessionKey = "com.claudeusagetracker.claude-session-key"
+        case apiSessionKey = "com.devondragon.ClaudeUsage.api-session-key"
+        case claudeSessionKey = "com.devondragon.ClaudeUsage.claude-session-key"
 
         var service: String {
             return rawValue
@@ -176,7 +176,12 @@ class KeychainService {
     }
 
     /// Single service for all per-profile secrets; the account encodes profile + field.
-    private static let profileSecretsService = "com.claudeusagetracker.profile-credentials"
+    ///
+    /// Fork-specific name: upstream (`HamedElfayome.Claude-Usage`) uses
+    /// `com.claudeusagetracker.profile-credentials` in the same login keychain.
+    /// Sharing it would make this differently signed app hit upstream's item
+    /// ACLs and raise a Keychain password prompt per item.
+    private static let profileSecretsService = "com.devondragon.ClaudeUsage.profile-credentials"
 
     /// In-memory cache: `loadProfiles()` runs on hot paths (every switch/sync/refresh),
     /// so avoid a SecItemCopyMatching round-trip per field per profile per load.
