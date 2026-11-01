@@ -36,6 +36,21 @@ final class UsageHistoryTests: XCTestCase {
         XCTAssertTrue(ResetDetection.isReset(from: before, to: before.addingTimeInterval(-3600)))
     }
 
+    func testPlaceholderDriftWhileResetIsUpcomingIsNotReset() {
+        // Idle session with no resets_at: parsers substitute now + 5h, which moves
+        // by the refresh interval (max 300 s) plus request latency on every poll.
+        let now = Date(timeIntervalSinceReferenceDate: 812354400)
+        let previous = now.addingTimeInterval(5 * 3600 - 310)
+        let new = now.addingTimeInterval(5 * 3600)
+        XCTAssertFalse(ResetDetection.isReset(from: previous, to: new, now: now))
+    }
+
+    func testResetIsDetectedOncePreviousResetTimeHasPassed() {
+        let now = Date(timeIntervalSinceReferenceDate: 812354400)
+        let previous = now.addingTimeInterval(-30)
+        XCTAssertTrue(ResetDetection.isReset(from: previous, to: now.addingTimeInterval(5 * 3600), now: now))
+    }
+
     // MARK: - Pruning (#337)
 
     private func snapshot(_ type: ResetType, at timestamp: Date, triggeringResetTime: Date? = nil) -> UsageSnapshot {

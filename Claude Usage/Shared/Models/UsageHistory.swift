@@ -330,7 +330,14 @@ enum ResetDetection {
     /// "reset" on nearly every poll (#337).
     static let tolerance: TimeInterval = 5 * 60
 
-    static func isReset(from previous: Date, to new: Date) -> Bool {
-        abs(new.timeIntervalSince(previous)) > tolerance
+    /// A reset also requires the previous reset time to have passed (with the same
+    /// 1 min slack as `UsageSnapshot.isValid`). When the API returns no `resets_at`
+    /// for an idle session, the parsers substitute "now + 5h", which moves by the
+    /// refresh interval (up to 300 s) on every poll and could exceed `tolerance`.
+    /// A snapshot recorded against a reset time still in the future would be
+    /// invalid and pruned anyway, so skipping it loses nothing.
+    static func isReset(from previous: Date, to new: Date, now: Date = Date()) -> Bool {
+        guard previous <= now.addingTimeInterval(60) else { return false }
+        return abs(new.timeIntervalSince(previous)) > tolerance
     }
 }
