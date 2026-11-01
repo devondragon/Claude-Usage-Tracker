@@ -6,12 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a fork of `hamed-elfayome/Claude-Usage-Tracker` (origin is `devondragon/Claude-Usage-Tracker`; no `upstream` remote is configured). Upstream went quiet around August 2026. The plan is to fix open upstream issues first, then customize the app. Upstream issue numbers (`#290`, `#267`, etc.) appear throughout code comments and `CHANGELOG.md`; they refer to the upstream tracker.
 
-The fork still carries upstream identity, so a locally built app is not isolated from an installed upstream copy:
+Fork identity, and how it differs from upstream:
 
-- Bundle ID `HamedElfayome.Claude-Usage` (same UserDefaults domain and Keychain items as the upstream app).
-- `SUFeedURL` in `Claude Usage/Resources/Info.plist` points at upstream's Sparkle appcast, so the in-app updater will offer upstream releases.
-- `HeartbeatService` pings upstream's Cloudflare worker every 24 hours.
-- `DEVELOPMENT_TEAM`, the release/appcast/Homebrew workflows, and their secrets (`DEVELOPER_CERTIFICATE_BASE`, `SPARKLE_PRIVATE_KEY`, `HOMEBREW_TAP_TOKEN`, ...) all target upstream's Apple account, gh-pages, and Homebrew tap. Tag pushes will run those workflows and fail without the secrets.
+- Bundle ID `com.devondragon.ClaudeUsage`. On first launch `UpstreamSettingsImporter` copies the upstream `HamedElfayome.Claude-Usage` defaults domain once (profiles, display config, notch token). Credentials do not carry over; profiles need a CLI re-sync or sign-in.
+- Keychain service names are prefixed `com.devondragon.ClaudeUsage.` so this app never reads upstream's login-keychain items (a different signature would trigger password prompts).
+- Release builds sign with Developer ID team `NLLX25D2J2` (stable identity, so per-profile secrets go to the login keychain). Debug builds are ad-hoc and keep secrets in the `profiles_v3` plist.
+- Sparkle is off: `UpdateManager.isEnabled` is false without `SUFeedURL` in Info.plist, and the Updates tab hides. Adding a feed URL and EdDSA public key turns it back on.
+- Heartbeat, star/feedback prompts, support reminder, sponsor slot, and mobile-app signup were removed. `Constants.GitHub` still points upstream for contributor credits; `Constants.forkRepoURL` is this repo.
+- `release.yml` runs on `v*` tags and needs this repo's own signing and notarization secrets. The upstream appcast and Homebrew workflows were removed.
+- The test target is hosted in the app, so `xcodebuild test` launches it as `com.devondragon.ClaudeUsage` with the real UserDefaults domain (including the first-launch import). Quit any leftover Debug copy afterward.
+- Usage history files stay in `~/Library/Application Support/Claude Usage/history/`, the same folder upstream uses, so imported profiles keep their history.
 
 ## Build and test
 
