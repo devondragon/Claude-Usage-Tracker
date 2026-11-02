@@ -1386,10 +1386,11 @@ class MenuBarManager: NSObject, ObservableObject {
 
     /// Checks if the current profile hit 100% and switches to the next available one
     /// Whether auto-switch may move to a profile with this cached usage.
-    /// Spend-limited profiles (company-paid Enterprise seats) are never targets.
+    /// Accounts without usage windows (company-paid Enterprise seats, even
+    /// before their spend loads) are never targets.
     static func isAutoSwitchCandidate(_ usage: ClaudeUsage?) -> Bool {
         guard let usage else { return true }  // no saved usage: treat as available
-        if usage.isSpendLimited { return false }
+        if usage.hasNoUsageWindows { return false }
         return usage.effectiveSessionPercentage < 100.0
     }
 
@@ -1399,7 +1400,7 @@ class MenuBarManager: NSObject, ObservableObject {
 
         // A spend-limited profile never triggers a switch: moving off the work
         // seat would move work onto another account.
-        guard !usage.isSpendLimited else { return }
+        guard !usage.hasNoUsageWindows else { return }
 
         // Guard: need more than 1 profile
         let profiles = profileManager.profiles
@@ -1502,9 +1503,8 @@ class MenuBarManager: NSObject, ObservableObject {
         previousUsage: ClaudeUsage?,
         newUsage: ClaudeUsage
     ) {
-        // Spend-limited accounts have no session; their placeholder reset
-        // times move every refresh and must not count as resets.
-        guard !newUsage.isSpendLimited else { return }
+        // Accounts without usage windows have no session to record.
+        guard !newUsage.hasNoUsageWindows else { return }
         let lastKnown = lastKnownSessionResetTime[profileId]
         let newResetTime = newUsage.sessionResetTime
 
@@ -1547,7 +1547,7 @@ class MenuBarManager: NSObject, ObservableObject {
         previousUsage: ClaudeUsage?,
         newUsage: ClaudeUsage
     ) {
-        guard !newUsage.isSpendLimited else { return }
+        guard !newUsage.hasNoUsageWindows else { return }
         let lastKnown = lastKnownWeeklyResetTime[profileId]
         let newResetTime = newUsage.weeklyResetTime
 

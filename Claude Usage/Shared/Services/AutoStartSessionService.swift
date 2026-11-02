@@ -154,17 +154,24 @@ final class AutoStartSessionService {
 
         do {
             // Fetch current usage for this profile
-            let (usage, hasOpenWindow) = try await fetchUsageForProfile(profile)
+            let (usage, hasOpenWindow) = try await fetchUsageData(for: profile)
 
-            // Spend-limited accounts (Enterprise seats with a monthly cap) have
-            // no session to start; 0% and no open window would otherwise
-            // trigger an attempt on every check. A null five_hour block alone
-            // is not enough: idle Max and Pro accounts report it too.
-            guard !usage.isSpendLimited else {
+            // Accounts without usage windows (Enterprise seats) have no session
+            // to start; 0% and no open window would otherwise trigger an attempt
+            // on every check. Their usage is not saved either: claude.ai's
+            // response carries no spend, and saving it would drop the spend the
+            // main refresh stored.
+            guard !Self.shouldSkipAutoStart(usage) else {
                 attemptStore.clear(for: profile.id)
-                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account is limited by monthly spend, not sessions")
+                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account has no session or weekly window")
                 return
             }
+
+            // Save usage to profile
+            profileManager.saveClaudeUsage(
+                usage.respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled),
+                for: profile.id
+            )
 
             let currentPercentage = usage.effectiveSessionPercentage
 
@@ -225,16 +232,11 @@ final class AutoStartSessionService {
         }
     }
 
-    private func fetchUsageForProfile(_ profile: Profile) async throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
-        // Fetch usage data using the profile's specific credentials
-        let (usage, hasOpenWindow) = try await fetchUsageData(for: profile)
-
-        // Save usage to profile
-        await MainActor.run {
-            profileManager.saveClaudeUsage(usage, for: profile.id)
-        }
-
-        return (usage, hasOpenWindow)
+    /// No 5-hour block and no weekly limit: nothing to auto-start. A null
+    /// five_hour block alone is not enough, since idle Max and Pro accounts
+    /// report it too.
+    static func shouldSkipAutoStart(_ usage: ClaudeUsage) -> Bool {
+        usage.hasNoUsageWindows
     }
 
     private func fetchUsageData(for profile: Profile) async throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
@@ -385,6 +387,7 @@ final class AutoStartSessionService {
             usage.costLimit = spend.limitCents
             usage.costCurrency = spend.currency
             usage.spendLimitReached = spend.limitReached
+            usage.spendUpdatedAt = Date()
         }
         return (usage, hasOpenWindow)
     }

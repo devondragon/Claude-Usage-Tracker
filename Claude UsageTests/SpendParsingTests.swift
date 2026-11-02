@@ -147,4 +147,32 @@ final class SpendParsingTests: XCTestCase {
         XCTAssertTrue(usage.isSpendLimited)
         XCTAssertEqual(usage.costUsed, 2985)
     }
+
+    func testDisabledExtraUsageFallsThroughToSpendBlock() throws {
+        var json = object(enterpriseJSON)
+        var extra = json["extra_usage"] as! [String: Any]
+        extra["is_enabled"] = false
+        json["extra_usage"] = extra
+        let usage = try parse(jsonString(json))
+
+        XCTAssertEqual(usage.costLimit, 150000)  // from the enabled spend block
+        XCTAssertTrue(usage.isSpendLimited)
+    }
+
+    func testParsedSpendRecordsWhenItWasRead() throws {
+        let before = Date()
+        let usage = try parse(enterpriseJSON)
+        XCTAssertNotNil(usage.spendUpdatedAt)
+        XCTAssertGreaterThanOrEqual(usage.spendUpdatedAt ?? .distantPast, before.addingTimeInterval(-1))
+    }
+
+    func testAutoStartSkipsEnterpriseSeatWithoutSpend() throws {
+        // claude.ai's response for an Enterprise seat: no windows, no spend.
+        let claudeAI = #"{"five_hour": null, "seven_day": null, "limits": []}"#
+        let (seat, _) = try AutoStartSessionService.parseUsageResponse(Data(claudeAI.utf8))
+        XCTAssertTrue(AutoStartSessionService.shouldSkipAutoStart(seat))
+
+        let (idleMax, _) = try AutoStartSessionService.parseUsageResponse(Data(idleMaxJSON.utf8))
+        XCTAssertFalse(AutoStartSessionService.shouldSkipAutoStart(idleMax))
+    }
 }

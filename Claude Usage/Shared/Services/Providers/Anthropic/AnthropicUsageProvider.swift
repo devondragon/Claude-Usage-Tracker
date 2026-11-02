@@ -40,6 +40,7 @@ final class AnthropicUsageProvider: UsageProviderService {
            let orgId = profile.organizationId {
             let usage = try await apiService.fetchUsageData(sessionKey: sessionKey, organizationId: orgId)
             return await addingSpendFromClaudeCode(to: usage, for: profile)
+                .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
         }
 
         // Priority 2: CLI OAuth credentials.
@@ -58,6 +59,7 @@ final class AnthropicUsageProvider: UsageProviderService {
                !ClaudeCodeSyncService.shared.isTokenExpired(usableJSON),
                let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: usableJSON) {
                 return try await apiService.fetchUsageData(oauthAccessToken: accessToken)
+                    .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
             }
         }
 
@@ -73,6 +75,7 @@ final class AnthropicUsageProvider: UsageProviderService {
            !ClaudeCodeSyncService.shared.isTokenExpired(systemCredentials),
            let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: systemCredentials) {
             return try await apiService.fetchUsageData(oauthAccessToken: accessToken)
+                .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
         }
 
         // No usable live credential (e.g. a non-active profile whose CLI token expired and
@@ -106,6 +109,7 @@ final class AnthropicUsageProvider: UsageProviderService {
         }
         let usage = try await apiService.fetchUsageData()
         return await addingSpendFromClaudeCode(to: usage, for: profile)
+            .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
     }
 
     // MARK: - Spend from the Claude Code login
@@ -129,9 +133,17 @@ final class AnthropicUsageProvider: UsageProviderService {
         return now.timeIntervalSince(lastFetch) >= spendFetchInterval
     }
 
-    /// The profile's last stored usage, if it carries a spend cap.
-    static func cachedSpend(from usage: ClaudeUsage?) -> ClaudeUsage? {
-        guard let usage, let limit = usage.costLimit, limit > 0 else { return nil }
+    /// The spend to show. A successful fetch wins, even without a cap (the cap
+    /// was removed). Otherwise the cached spend is used only if it was read in
+    /// the current spend period, so last month's spend never carries over.
+    static func resolveSpend(usage: ClaudeUsage, fetched: ClaudeUsage?, cached: ClaudeUsage?, now: Date) -> ClaudeUsage {
+        if let fetched {
+            return mergingSpend(from: fetched, into: usage)
+        }
+        if let cached, let limit = cached.costLimit, limit > 0,
+           let readAt = cached.spendUpdatedAt, readAt >= SpendPeriod.containing(now).start {
+            return mergingSpend(from: cached, into: usage)
+        }
         return usage
     }
 
@@ -145,6 +157,7 @@ final class AnthropicUsageProvider: UsageProviderService {
         merged.costLimit = source.costLimit
         merged.costCurrency = source.costCurrency
         merged.spendLimitReached = source.spendLimitReached
+        merged.spendUpdatedAt = source.spendUpdatedAt
         return merged
     }
 
@@ -155,8 +168,8 @@ final class AnthropicUsageProvider: UsageProviderService {
     private func addingSpendFromClaudeCode(to usage: ClaudeUsage, for profile: Profile) async -> ClaudeUsage {
         guard Self.needsSpendFromClaudeCode(usage) else { return usage }
 
-        let fallback = Self.cachedSpend(from: profile.claudeUsage).map { Self.mergingSpend(from: $0, into: usage) } ?? usage
         let now = Date()
+        let fallback = Self.resolveSpend(usage: usage, fetched: nil, cached: profile.claudeUsage, now: now)
         guard Self.shouldFetchSpend(lastFetch: lastSpendFetch[profile.id], now: now) else { return fallback }
         lastSpendFetch[profile.id] = now
 
@@ -175,8 +188,7 @@ final class AnthropicUsageProvider: UsageProviderService {
 
         do {
             let oauthUsage = try await apiService.fetchUsageData(oauthAccessToken: token)
-            guard oauthUsage.costLimit != nil else { return fallback }
-            return Self.mergingSpend(from: oauthUsage, into: usage)
+            return Self.resolveSpend(usage: usage, fetched: oauthUsage, cached: nil, now: now)
         } catch {
             LoggingService.shared.log("AnthropicUsageProvider: spend via Claude Code login failed for '\(profile.name)': \(error.localizedDescription)")
             return fallback

@@ -194,7 +194,8 @@ class NotificationManager: NotificationServiceProtocol {
             let period = SpendPeriod.containing(now)
             let resetTime = period.end
             let periodKey = periodKeyFormatter.string(from: period.start)
-            if usage.spendLimitReached {
+            // Not every source sets spend_limit_reached; spend at the cap counts too.
+            if usage.spendLimitReached || usage.spendPercentage >= 100 {
                 return ThresholdAlert(type: .spendLimitReached, threshold: 100, percentage: usage.spendPercentage, resetTime: resetTime, periodKey: periodKey)
             }
             guard let threshold = settings.sortedThresholds.last(where: { usage.spendPercentage >= Double($0) }) else {

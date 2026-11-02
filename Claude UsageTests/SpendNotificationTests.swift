@@ -49,10 +49,11 @@ final class SpendNotificationTests: XCTestCase {
         XCTAssertEqual(result?.threshold, 100)
     }
 
-    func testOverCapGivesCritical() {
-        let result = alert(spend(106))
-        XCTAssertEqual(result?.type, .spendCritical)
-        XCTAssertEqual(result?.threshold, 95)
+    func testAtOrOverCapCountsAsLimitReached() {
+        // Not every source sets spend_limit_reached; spend at the cap is enough.
+        XCTAssertEqual(alert(spend(106))?.type, .spendLimitReached)
+        XCTAssertEqual(alert(spend(100))?.type, .spendLimitReached)
+        XCTAssertEqual(alert(spend(99))?.type, .spendCritical)
     }
 
     func testNormalSessionUnchanged() {

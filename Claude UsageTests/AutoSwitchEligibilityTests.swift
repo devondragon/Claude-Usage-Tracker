@@ -33,4 +33,18 @@ final class AutoSwitchEligibilityTests: XCTestCase {
     func testNormalBelowLimitIsCandidate() {
         XCTAssertTrue(MenuBarManager.isAutoSwitchCandidate(session(40)))
     }
+
+    func testNoWindowAccountWithoutSpendIsNeverCandidate() {
+        // Enterprise seat whose spend has not been fetched yet.
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.hasWeeklyWindow = false
+        XCTAssertFalse(MenuBarManager.isAutoSwitchCandidate(usage))
+    }
+
+    func testIdleMaxIsStillCandidate() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false  // no session running; weekly present
+        XCTAssertTrue(MenuBarManager.isAutoSwitchCandidate(usage))
+    }
 }

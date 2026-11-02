@@ -91,4 +91,29 @@ final class SpendModelTests: XCTestCase {
         XCTAssertEqual(SpendFormatting.string(cents: 2985, currency: "USD", locale: locale), "$29.85")
         XCTAssertEqual(SpendFormatting.string(cents: 150000, currency: "USD", locale: locale), "$1,500.00")
     }
+
+    func testNoUsageWindowsIndependentOfSpend() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.hasWeeklyWindow = false
+        XCTAssertTrue(usage.hasNoUsageWindows)  // spend not loaded yet
+
+        usage.hasWeeklyWindow = true  // idle Max: weekly present
+        XCTAssertFalse(usage.hasNoUsageWindows)
+    }
+
+    func testOverageOptOutClearsCostForWindowedAccounts() {
+        var max = ClaudeUsage.empty
+        max.costUsed = 500
+        max.costLimit = 10000
+        max.costCurrency = "USD"
+        let optedOut = max.respectingOverageOptOut(enabled: false)
+        XCTAssertNil(optedOut.costUsed)
+        XCTAssertNil(optedOut.costLimit)
+        XCTAssertEqual(max.respectingOverageOptOut(enabled: true).costLimit, 10000)
+
+        // A spend-only account keeps its spend: it is the account's only limit.
+        let enterprise = spendUsage()
+        XCTAssertTrue(enterprise.respectingOverageOptOut(enabled: false).isSpendLimited)
+    }
 }

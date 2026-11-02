@@ -65,6 +65,33 @@ struct ClaudeUsage: Codable, Equatable {
     var hasSessionWindow: Bool = true
     var hasWeeklyWindow: Bool = true
     var spendLimitReached: Bool = false
+    /// When the spend fields were last read from an API response. A cached
+    /// spend from an earlier month must not be reused.
+    var spendUpdatedAt: Date? = nil
+
+    /// The response had no 5-hour block and no weekly limit at all. True for
+    /// Enterprise seats even before their spend is loaded; false for idle Max
+    /// and Pro accounts, which still report a weekly limit. Used where a wrong
+    /// guess costs most (auto-switch, auto-start, history).
+    var hasNoUsageWindows: Bool {
+        !hasSessionWindow && !hasWeeklyWindow
+    }
+
+    /// Applies the profile's "Check Extra Usage Limit" setting. Accounts with
+    /// usage windows drop the cost fields when it is off; a spend-only account
+    /// keeps them, since the spend cap is its only limit.
+    func respectingOverageOptOut(enabled: Bool) -> ClaudeUsage {
+        guard !enabled, !hasNoUsageWindows else { return self }
+        var usage = self
+        usage.costUsed = nil
+        usage.costLimit = nil
+        usage.costCurrency = nil
+        usage.overageBalance = nil
+        usage.overageBalanceCurrency = nil
+        usage.spendLimitReached = false
+        usage.spendUpdatedAt = nil
+        return usage
+    }
 
     /// The account's only limit is a monthly spend cap (costUsed / costLimit, in cents).
     var isSpendLimited: Bool {
@@ -164,7 +191,7 @@ extension ClaudeUsage {
         case overageBalance, overageBalanceCurrency
         case planType, creditsBalance, creditsUnlimited
         case lastUpdated, userTimezone
-        case hasSessionWindow, hasWeeklyWindow, spendLimitReached
+        case hasSessionWindow, hasWeeklyWindow, spendLimitReached, spendUpdatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -201,7 +228,8 @@ extension ClaudeUsage {
             userTimezone: try c.decodeIfPresent(TimeZone.self, forKey: .userTimezone) ?? .current,
             hasSessionWindow: try c.decodeIfPresent(Bool.self, forKey: .hasSessionWindow) ?? true,
             hasWeeklyWindow: try c.decodeIfPresent(Bool.self, forKey: .hasWeeklyWindow) ?? true,
-            spendLimitReached: try c.decodeIfPresent(Bool.self, forKey: .spendLimitReached) ?? false
+            spendLimitReached: try c.decodeIfPresent(Bool.self, forKey: .spendLimitReached) ?? false,
+            spendUpdatedAt: try c.decodeIfPresent(Date.self, forKey: .spendUpdatedAt)
         )
     }
 }

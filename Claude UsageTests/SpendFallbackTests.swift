@@ -45,11 +45,6 @@ final class SpendFallbackTests: XCTestCase {
 
         let merged = AnthropicUsageProvider.mergingSpend(from: cached, into: noWindows())
         XCTAssertTrue(merged.isSpendLimited)
-
-        // A cached snapshot without spend leaves the result unchanged.
-        let unchanged = AnthropicUsageProvider.cachedSpend(from: noWindows())
-        XCTAssertNil(unchanged)
-        XCTAssertEqual(AnthropicUsageProvider.cachedSpend(from: cached)?.costLimit, 150000)
     }
 
     func testMergeCopiesSpendOnly() {
@@ -76,5 +71,44 @@ final class SpendFallbackTests: XCTestCase {
         usage.costUsed = 0
         usage.costLimit = 0
         XCTAssertTrue(AnthropicUsageProvider.needsSpendFromClaudeCode(usage))
+    }
+
+    // MARK: - resolveSpend
+
+    private let now = ISO8601DateFormatter().date(from: "2026-11-01T06:00:00Z")!
+
+    private func withSpend(_ base: ClaudeUsage, limit: Double?, at date: Date?) -> ClaudeUsage {
+        var usage = base
+        usage.costUsed = limit == nil ? nil : 1440
+        usage.costLimit = limit
+        usage.costCurrency = limit == nil ? nil : "USD"
+        usage.spendUpdatedAt = date
+        return usage
+    }
+
+    func testSuccessfulFetchWithoutCapClearsCachedCap() {
+        let cached = withSpend(noWindows(), limit: 150000, at: now.addingTimeInterval(-60))
+        let fetched = withSpend(noWindows(), limit: nil, at: now)
+
+        let result = AnthropicUsageProvider.resolveSpend(usage: noWindows(), fetched: fetched, cached: cached, now: now)
+        XCTAssertNil(result.costLimit)
+        XCTAssertFalse(result.isSpendLimited)
+    }
+
+    func testCachedSpendFromLastMonthIsDropped() {
+        // October's spend must not be shown or alerted on in November.
+        let october = ISO8601DateFormatter().date(from: "2026-10-31T23:00:00Z")!
+        let cached = withSpend(noWindows(), limit: 150000, at: october)
+
+        let result = AnthropicUsageProvider.resolveSpend(usage: noWindows(), fetched: nil, cached: cached, now: now)
+        XCTAssertNil(result.costLimit)
+    }
+
+    func testCachedSpendFromThisMonthIsKept() {
+        let cached = withSpend(noWindows(), limit: 150000, at: now.addingTimeInterval(-120))
+
+        let result = AnthropicUsageProvider.resolveSpend(usage: noWindows(), fetched: nil, cached: cached, now: now)
+        XCTAssertEqual(result.costLimit, 150000)
+        XCTAssertEqual(result.spendUpdatedAt, cached.spendUpdatedAt)
     }
 }

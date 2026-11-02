@@ -967,6 +967,7 @@ class ClaudeAPIService: APIServiceProtocol {
                 usage.costLimit = spend.limitCents
                 usage.costCurrency = spend.currency
                 usage.spendLimitReached = spend.limitReached
+                usage.spendUpdatedAt = Date()
             }
 
             return usage
@@ -1065,7 +1066,7 @@ class ClaudeAPIService: APIServiceProtocol {
     /// Robust utilization parser that handles Int, Double, or String types
     /// - Parameter value: The utilization value from API (can be Int, Double, or String)
     /// - Returns: Parsed percentage as Double, or 0.0 if parsing fails
-    /// Reads the monthly spend cap. Prefers `extra_usage`; falls back to `spend`.
+    /// Reads the monthly spend cap. Prefers an enabled `extra_usage`; otherwise uses `spend`.
     /// Returns nil when spend tracking is disabled, missing, or has no limit.
     static func parseSpend(from json: [String: Any]) -> ParsedSpend? {
         func number(_ value: Any?) -> Double? {
@@ -1078,10 +1079,10 @@ class ClaudeAPIService: APIServiceProtocol {
             value * pow(10, Double(2 - decimalPlaces))
         }
 
-        if let extra = json["extra_usage"] as? [String: Any] {
-            guard extra["is_enabled"] as? Bool == true,
-                  let limit = number(extra["monthly_limit"]), limit > 0,
-                  let used = number(extra["used_credits"]) else { return nil }
+        if let extra = json["extra_usage"] as? [String: Any],
+           extra["is_enabled"] as? Bool == true,
+           let limit = number(extra["monthly_limit"]), limit > 0,
+           let used = number(extra["used_credits"]) {
             let places = (extra["decimal_places"] as? Int) ?? 2
             return ParsedSpend(
                 usedCents: cents(used, decimalPlaces: places),
