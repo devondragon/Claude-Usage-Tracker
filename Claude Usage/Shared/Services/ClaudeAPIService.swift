@@ -954,11 +954,13 @@ class ClaudeAPIService: APIServiceProtocol {
                 userTimezone: .current
             )
 
-            // A null or missing block means the account has no such window,
-            // as opposed to an unused one (Ultra has no 5-hour window;
-            // Enterprise seats capped by monthly spend have neither).
+            // A null five_hour block means no session window right now (idle,
+            // or no 5-hour limit at all). Weekly counts as present when the
+            // seven_day block or any `limits` entry exists. Enterprise seats
+            // capped by monthly spend have neither.
             usage.hasSessionWindow = json["five_hour"] is [String: Any]
             usage.hasWeeklyWindow = json["seven_day"] is [String: Any]
+                || ((json["limits"] as? [Any])?.isEmpty == false)
 
             if let spend = Self.parseSpend(from: json) {
                 usage.costUsed = spend.usedCents

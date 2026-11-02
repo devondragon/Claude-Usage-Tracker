@@ -37,24 +37,18 @@ final class MenuBarSlotLayoutTests: XCTestCase {
         )
     }
 
-    func testUltraHidesSessionKeepsWeek() {
+    func testIdleSessionKeepsSessionBar() {
+        // five_hour null also means "no session running"; the bar stays.
         XCTAssertEqual(
             MenuBarSlotLayout.contents(enabled: [.session, .week], usage: usage(session: false)),
-            [.session: .hidden, .week: .metric]
+            [.session: .metric, .week: .metric]
         )
     }
 
-    func testNoLimitsShowsAppLogo() {
+    func testNoWindowsWithoutSpendCapKeepsBars() {
         XCTAssertEqual(
             MenuBarSlotLayout.contents(enabled: [.session], usage: usage(session: false, weekly: false)),
-            [.session: .appLogo]
-        )
-    }
-
-    func testUltraWithOnlySessionEnabledShowsAppLogo() {
-        XCTAssertEqual(
-            MenuBarSlotLayout.contents(enabled: [.session], usage: usage(session: false)),
-            [.session: .appLogo]
+            [.session: .metric]
         )
     }
 }

@@ -47,22 +47,16 @@ final class SpendModelTests: XCTestCase {
         XCTAssertEqual(spendUsage(used: 160000).spendPercentage, 106.666, accuracy: 0.001)
     }
 
-    func testReportsNoLimits() {
-        let noLimit = spendUsage(limit: nil)
-        XCTAssertTrue(noLimit.reportsNoLimits)
-        XCTAssertFalse(noLimit.isSpendLimited)
-
-        let zeroLimit = spendUsage(limit: 0)
-        XCTAssertTrue(zeroLimit.reportsNoLimits)
-        XCTAssertFalse(zeroLimit.isSpendLimited)
+    func testNoSpendCapIsNotSpendLimited() {
+        XCTAssertFalse(spendUsage(limit: nil).isSpendLimited)
+        XCTAssertFalse(spendUsage(limit: 0).isSpendLimited)
     }
 
-    func testWeeklyOnlyAccountIsNotSpendLimited() {
+    func testWeeklyWindowIsNotSpendLimited() {
         var usage = spendUsage()
         usage.hasWeeklyWindow = true
 
         XCTAssertFalse(usage.isSpendLimited)
-        XCTAssertFalse(usage.reportsNoLimits)
     }
 
     // MARK: - Spend period

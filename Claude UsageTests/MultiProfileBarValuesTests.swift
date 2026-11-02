@@ -20,7 +20,6 @@ final class MultiProfileBarValuesTests: XCTestCase {
         XCTAssertNotNil(values.primaryElapsed)
         XCTAssertNotNil(values.secondaryElapsed)
         XCTAssertFalse(values.isSpend)
-        XCTAssertFalse(values.showsAppLogo)
     }
 
     func testSpendProfile() {
@@ -40,7 +39,8 @@ final class MultiProfileBarValuesTests: XCTestCase {
         XCTAssertTrue(values.isSpend)
     }
 
-    func testWeeklyOnlyProfile() {
+    func testIdleSessionKeepsBothBars() {
+        // five_hour null also means "no session running"; both bars stay.
         var usage = ClaudeUsage.empty
         usage.hasSessionWindow = false
         usage.weeklyPercentage = 31
@@ -48,16 +48,8 @@ final class MultiProfileBarValuesTests: XCTestCase {
 
         let values = MultiProfileBarValues.make(for: usage, showWeek: true, now: now)
 
-        XCTAssertEqual(values.primaryUsed, 31)
-        XCTAssertNil(values.secondaryUsed)
+        XCTAssertEqual(values.primaryUsed, 0)
+        XCTAssertEqual(values.secondaryUsed, 31)
         XCTAssertFalse(values.isSpend)
-    }
-
-    func testNoLimitsProfile() {
-        var usage = ClaudeUsage.empty
-        usage.hasSessionWindow = false
-        usage.hasWeeklyWindow = false
-
-        XCTAssertTrue(MultiProfileBarValues.make(for: usage, showWeek: true, now: now).showsAppLogo)
     }
 }

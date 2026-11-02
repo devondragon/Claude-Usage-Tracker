@@ -156,12 +156,13 @@ final class AutoStartSessionService {
             // Fetch current usage for this profile
             let (usage, hasOpenWindow) = try await fetchUsageForProfile(profile)
 
-            // Accounts without a 5-hour window (Ultra, Enterprise spend caps)
-            // have no session to start; 0% and no open window would otherwise
-            // trigger an attempt on every check.
-            guard usage.hasSessionWindow else {
+            // Spend-limited accounts (Enterprise seats with a monthly cap) have
+            // no session to start; 0% and no open window would otherwise
+            // trigger an attempt on every check. A null five_hour block alone
+            // is not enough: idle Max and Pro accounts report it too.
+            guard !usage.isSpendLimited else {
                 attemptStore.clear(for: profile.id)
-                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account has no 5-hour session window")
+                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account is limited by monthly spend, not sessions")
                 return
             }
 
@@ -378,6 +379,7 @@ final class AutoStartSessionService {
         // because this usage is saved to the profile.
         usage.hasSessionWindow = json["five_hour"] is [String: Any]
         usage.hasWeeklyWindow = json["seven_day"] is [String: Any]
+            || ((json["limits"] as? [Any])?.isEmpty == false)
         if let spend = ClaudeAPIService.parseSpend(from: json) {
             usage.costUsed = spend.usedCents
             usage.costLimit = spend.limitCents

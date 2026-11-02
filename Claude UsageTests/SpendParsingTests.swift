@@ -90,18 +90,52 @@ final class SpendParsingTests: XCTestCase {
         XCTAssertEqual(usage.costLimit, 150000)
     }
 
-    func testUltraResponseHasNoSessionWindow() throws {
-        let usage = try parse(#"{"five_hour": null, "seven_day": {"utilization": 12, "resets_at": "2026-11-06T20:00:00.000Z"}}"#)
+    // Abridged from a Max account's /api/oauth/usage response with no session running,
+    // 2026-11-02: five_hour is null exactly as on an account without a 5-hour limit.
+    private let idleMaxJSON = """
+    {
+      "five_hour": null,
+      "seven_day": {"utilization": 16.0, "resets_at": "2026-11-04T09:00:00.171755+00:00"},
+      "extra_usage": {
+        "is_enabled": false, "monthly_limit": 10000, "used_credits": 0.0, "currency": "USD",
+        "decimal_places": 2, "disabled_reason": "out_of_credits", "spend_limit_reached": false
+      },
+      "limits": [{"kind": "weekly_all", "group": "weekly", "percent": 16, "is_active": true}]
+    }
+    """
 
-        XCTAssertFalse(usage.hasSessionWindow)
+    func testIdleMaxAccountIsNotSpendLimited() throws {
+        let usage = try parse(idleMaxJSON)
+
+        XCTAssertFalse(usage.isSpendLimited)
         XCTAssertTrue(usage.hasWeeklyWindow)
+        XCTAssertNil(usage.costLimit)
+    }
+
+    func testLimitsEntriesCountAsWindows() throws {
+        // No five_hour or seven_day block, but the plan still lists limits:
+        // not a spend-only account even with extra usage enabled.
+        var json = object(enterpriseJSON)
+        json["limits"] = [["kind": "weekly_all", "group": "weekly", "percent": 0, "is_active": false]]
+        let usage = try parse(jsonString(json))
+
+        XCTAssertTrue(usage.hasWeeklyWindow)
+        XCTAssertFalse(usage.isSpendLimited)
     }
 
     func testDisabledExtraUsageIsIgnored() throws {
         let usage = try parse(#"{"five_hour": null, "seven_day": null, "extra_usage": {"is_enabled": false, "monthly_limit": 150000, "used_credits": 10}}"#)
 
-        XCTAssertTrue(usage.reportsNoLimits)
+        XCTAssertFalse(usage.isSpendLimited)
         XCTAssertNil(usage.costLimit)
+    }
+
+    func testAutoStartParserKeepsIdleMaxStartable() throws {
+        let (usage, hasOpenWindow) = try AutoStartSessionService.parseUsageResponse(Data(idleMaxJSON.utf8))
+
+        // Idle: no open window, and not spend-limited, so auto-start may run.
+        XCTAssertFalse(hasOpenWindow)
+        XCTAssertFalse(usage.isSpendLimited)
     }
 
     func testAutoStartParserFlagsMissingSessionWindow() throws {

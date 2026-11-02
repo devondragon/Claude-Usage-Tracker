@@ -56,10 +56,11 @@ struct ClaudeUsage: Codable, Equatable {
     var lastUpdated: Date
     var userTimezone: TimeZone
 
-    // Which limits the account has. Accounts without a 5-hour window (Ultra)
-    // or without any window (Enterprise seats capped by monthly spend) report
-    // the block as null; zeros alone cannot tell "unused" from "absent".
-    // Declared after `userTimezone` with defaults so the memberwise
+    // Whether the usage response carried a 5-hour block / any weekly limit.
+    // A null five_hour block also means "no session running" on Max and Pro,
+    // so these flags alone must not hide UI; only `isSpendLimited` (no window,
+    // no plan limits, and a monthly spend cap: Enterprise seats) changes the
+    // display. Declared after `userTimezone` with defaults so the memberwise
     // initializer keeps working at existing call sites.
     var hasSessionWindow: Bool = true
     var hasWeeklyWindow: Bool = true
@@ -68,11 +69,6 @@ struct ClaudeUsage: Codable, Equatable {
     /// The account's only limit is a monthly spend cap (costUsed / costLimit, in cents).
     var isSpendLimited: Bool {
         !hasSessionWindow && !hasWeeklyWindow && costUsed != nil && (costLimit ?? 0) > 0
-    }
-
-    /// The account reports no window and no usable spend cap.
-    var reportsNoLimits: Bool {
-        !hasSessionWindow && !hasWeeklyWindow && !isSpendLimited
     }
 
     /// Share of the monthly spend cap used, in percent. Not clamped: spend can exceed the cap.

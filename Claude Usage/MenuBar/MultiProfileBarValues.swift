@@ -4,8 +4,7 @@
 //
 //  The values one profile's multi-profile menu bar icon draws. Normally a
 //  session bar plus a weekly bar; a spend-limited profile draws one monthly
-//  spend bar instead, and an account without a 5-hour window draws only its
-//  weekly bar.
+//  spend bar instead.
 //
 
 import Foundation
@@ -19,8 +18,6 @@ struct MultiProfileBarValues: Equatable {
     let secondaryElapsed: Double?
     /// The first bar is monthly spend.
     let isSpend: Bool
-    /// The account reports no limits; draw the app logo.
-    let showsAppLogo: Bool
 
     static func make(for usage: ClaudeUsage, showWeek: Bool, now: Date) -> MultiProfileBarValues {
         if usage.isSpendLimited {
@@ -29,16 +26,7 @@ struct MultiProfileBarValues: Equatable {
                 primaryElapsed: SpendPeriod.containing(now).elapsedFraction(at: now),
                 secondaryUsed: nil,
                 secondaryElapsed: nil,
-                isSpend: true,
-                showsAppLogo: false
-            )
-        }
-
-        if usage.reportsNoLimits {
-            return MultiProfileBarValues(
-                primaryUsed: 0, primaryElapsed: nil,
-                secondaryUsed: nil, secondaryElapsed: nil,
-                isSpend: false, showsAppLogo: true
+                isSpend: true
             )
         }
 
@@ -48,27 +36,17 @@ struct MultiProfileBarValues: Equatable {
             showRemaining: false
         )
 
-        if !usage.hasSessionWindow {
-            return MultiProfileBarValues(
-                primaryUsed: usage.weeklyPercentage, primaryElapsed: weekElapsed,
-                secondaryUsed: nil, secondaryElapsed: nil,
-                isSpend: false, showsAppLogo: false
-            )
-        }
-
         let sessionElapsed = UsageStatusCalculator.elapsedFraction(
             resetTime: usage.sessionResetTime,
             duration: Constants.sessionWindow,
             showRemaining: false
         )
-        let showSecond = showWeek && usage.hasWeeklyWindow
         return MultiProfileBarValues(
             primaryUsed: usage.effectiveSessionPercentage,
             primaryElapsed: sessionElapsed,
-            secondaryUsed: showSecond ? usage.weeklyPercentage : nil,
-            secondaryElapsed: showSecond ? weekElapsed : nil,
-            isSpend: false,
-            showsAppLogo: false
+            secondaryUsed: showWeek ? usage.weeklyPercentage : nil,
+            secondaryElapsed: showWeek ? weekElapsed : nil,
+            isSpend: false
         )
     }
 }

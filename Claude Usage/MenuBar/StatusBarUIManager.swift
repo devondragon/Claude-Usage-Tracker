@@ -366,7 +366,7 @@ final class StatusBarUIManager {
             let showRemaining = config.showRemainingPercentage
 
             // Bar values: session + week normally, one spend bar for a
-            // spend-limited profile, weekly only without a 5-hour window.
+            // spend-limited profile.
             let values = MultiProfileBarValues.make(for: usage, showWeek: config.showWeek, now: Date())
             let hasSecond = values.secondaryUsed != nil
             let sessionUsed = values.primaryUsed
@@ -375,17 +375,6 @@ final class StatusBarUIManager {
             let weekElapsed = values.secondaryElapsed
             // Name labels mark the spend bar with "$" ("Tribe $").
             let labelName = values.isSpend ? "\(profile.name) $" : profile.name
-
-            if values.showsAppLogo {
-                let logo = renderer.createDefaultAppLogo(isDarkMode: menuBarIsDark)
-                logo.isTemplate = true
-                let stableLength = ceil(logo.size.width / 32.0) * 32.0
-                if abs(statusItem.length - stableLength) > 0.5 {
-                    statusItem.length = stableLength
-                }
-                button.image = logo
-                continue
-            }
 
             let sessionDisplay = UsageStatusCalculator.getDisplayPercentage(
                 usedPercentage: sessionUsed,
@@ -642,11 +631,6 @@ final class StatusBarUIManager {
 
         let image: NSImage
         switch content {
-        case .appLogo:
-            image = renderer.createDefaultAppLogo(isDarkMode: menuBarIsDark)
-            image.isTemplate = true
-            setButtonImage(button, image: image)
-            return
         case .spend:
             image = renderer.createSpendImage(
                 config: metricConfig,
