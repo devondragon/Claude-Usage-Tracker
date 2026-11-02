@@ -41,7 +41,7 @@ Open loose ends:
 - Devon's Tribe and Lumena profiles have no credentials in the fork. Link them in Settings > CLI Account > Claude Code accounts.
 - History files (12 to 27 MB) are pruned the first time a snapshot is recorded, not at launch. Backups were taken on 2026-11-01 in that session's scratchpad.
 - The login keychain holds about 5,229 `Claude Code-credentials-<hash>` entries left by temporary config dirs. Cleanup deletes Claude Code's items, so it needs Devon's go-ahead.
-- Devon's running copy launches from the `~/git/Claude-Usage-Tracker-local` worktree (branch `local/integration`, same tree as `main`). Remove it after switching to a build from `main`, and quit the app before any rebuild over its bundle.
+- Devon's daily copy is `/Applications/Claude Usage.app`, installed from `main` with `scripts/install-local.sh` (2026-11-02). The `Claude-Usage-Tracker-local` worktree and the upstream app are gone (upstream app moved to the Trash).
 
 ## How to take upstream PRs
 
