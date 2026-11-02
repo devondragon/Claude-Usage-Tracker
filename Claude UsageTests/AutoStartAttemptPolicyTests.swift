@@ -42,6 +42,14 @@ final class AutoStartAttemptPolicyTests: XCTestCase {
 
         XCTAssertEqual(AutoStartAttemptPolicy.decide(state: state, now: now.addingTimeInterval(3600)), .wait(until: resume))
         XCTAssertEqual(AutoStartAttemptPolicy.decide(state: state, now: resume), .attempt)
+        // Timer jitter just before the pause ends does not cost a cycle.
+        XCTAssertEqual(AutoStartAttemptPolicy.decide(state: state, now: resume.addingTimeInterval(-10)), .attempt)
+    }
+
+    func testLastAttemptInTheFutureDoesNotBlock() {
+        // The clock moved back after the attempt was saved.
+        let state = AutoStartAttemptState(attempts: AutoStartAttemptPolicy.maxAttempts, lastAttempt: now.addingTimeInterval(86_400))
+        XCTAssertEqual(AutoStartAttemptPolicy.decide(state: state, now: now), .attempt)
     }
 
     func testStateAfterAttemptCountsUpAndRestartsAfterPause() {

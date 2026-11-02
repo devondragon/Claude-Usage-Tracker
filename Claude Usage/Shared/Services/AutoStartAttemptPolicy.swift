@@ -37,14 +37,14 @@ enum AutoStartAttemptPolicy {
     static func decide(state: AutoStartAttemptState?, now: Date) -> Decision {
         guard let state, state.attempts > 0 else { return .attempt }
 
-        let earliest: Date
-        if state.attempts >= maxAttempts {
-            earliest = state.lastAttempt.addingTimeInterval(pauseAfterMaxAttempts)
-            return now >= earliest ? .attempt : .wait(until: earliest)
-        }
+        // A last attempt in the future means the clock moved back since it
+        // was saved. The saved time is meaningless then, so don't wait on it.
+        guard state.lastAttempt <= now else { return .attempt }
 
-        let interval = baseInterval * pow(2, Double(state.attempts - 1))
-        earliest = state.lastAttempt.addingTimeInterval(interval)
+        let wait = state.attempts >= maxAttempts
+            ? pauseAfterMaxAttempts
+            : baseInterval * pow(2, Double(state.attempts - 1))
+        let earliest = state.lastAttempt.addingTimeInterval(wait)
         return now >= earliest.addingTimeInterval(-timerSlack) ? .attempt : .wait(until: earliest)
     }
 

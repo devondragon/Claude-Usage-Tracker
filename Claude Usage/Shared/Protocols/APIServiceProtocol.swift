@@ -16,7 +16,6 @@ protocol APIServiceProtocol {
     // MARK: - Claude.ai API
     func fetchOrganizationId(sessionKey: String?) async throws -> String
     func fetchUsageData() async throws -> ClaudeUsage
-    func sendInitializationMessage() async throws
 
     // MARK: - Console API
     func fetchConsoleOrganizations(apiSessionKey: String) async throws -> [APIOrganization]

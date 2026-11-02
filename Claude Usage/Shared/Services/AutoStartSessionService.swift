@@ -177,8 +177,11 @@ final class AutoStartSessionService {
                 }
 
                 // Bound retries when attempts keep failing, or succeed without
-                // opening a window (upstream #334). Counted before sending so a
-                // crash or quit mid-attempt still counts.
+                // opening a window (upstream #334). Only attempts that created a
+                // conversation count, so a network or server error before that
+                // point cannot trigger the pause. The count is saved as soon as
+                // the conversation exists, so a crash or quit mid-attempt still
+                // counts.
                 let now = Date()
                 let previous = attemptStore.state(for: profile.id)
                 if case .wait(let until) = AutoStartAttemptPolicy.decide(state: previous, now: now) {
@@ -186,17 +189,19 @@ final class AutoStartSessionService {
                     LoggingService.shared.logDebug("Profile '\(profile.name)': auto-start backing off after \(previous?.attempts ?? 0) attempt(s) - next try in \(minutes)m")
                     return
                 }
-                let state = AutoStartAttemptPolicy.stateAfterAttempt(previous, now: now)
-                attemptStore.save(state, for: profile.id)
 
-                LoggingService.shared.logInfo("Session at 0% for profile '\(profile.name)' - triggering auto-start (attempt \(state.attempts) of \(AutoStartAttemptPolicy.maxAttempts))")
+                LoggingService.shared.logInfo("Session at 0% for profile '\(profile.name)' - triggering auto-start")
 
-                // Auto-start the session
-                await autoStartSession(for: profile)
+                var counted: AutoStartAttemptState?
+                let started = await autoStartSession(for: profile) {
+                    let state = AutoStartAttemptPolicy.stateAfterAttempt(previous, now: now)
+                    attemptStore.save(state, for: profile.id)
+                    counted = state
+                }
 
-                if state.attempts >= AutoStartAttemptPolicy.maxAttempts {
+                if !started, let counted, counted.attempts >= AutoStartAttemptPolicy.maxAttempts {
                     let hours = Int(AutoStartAttemptPolicy.pauseAfterMaxAttempts / 3600)
-                    LoggingService.shared.logWarning("Profile '\(profile.name)': \(state.attempts) auto-start attempts without an open session window - pausing auto-start for \(hours)h")
+                    LoggingService.shared.logWarning("Profile '\(profile.name)': \(counted.attempts) auto-start attempts without an open session window - pausing auto-start for \(hours)h")
                 }
             } else {
                 // Session is active, clear any tracked reset time since usage endpoint is now showing correct data
@@ -402,10 +407,13 @@ final class AutoStartSessionService {
 
     // MARK: - Auto-Start Session
 
-    private func autoStartSession(for profile: Profile) async {
+    /// Returns true when the initialization message was sent successfully.
+    /// `onConversationCreated` runs once the temporary conversation exists.
+    @discardableResult
+    private func autoStartSession(for profile: Profile, onConversationCreated: () -> Void = {}) async -> Bool {
         do {
             // Call the initialization API for this profile and get response data
-            let responseData = try await sendInitializationMessage(for: profile)
+            let responseData = try await sendInitializationMessage(for: profile, onConversationCreated: onConversationCreated)
 
             // Capture reset time from response to prevent duplicate auto-starts
             if let resetTime = parseCompletionResponseForResetTime(responseData) {
@@ -424,6 +432,7 @@ final class AutoStartSessionService {
                     settings: profile.notificationSettings
                 )
             }
+            return true
 
         } catch {
             LoggingService.shared.logError("Failed to auto-start session for profile '\(profile.name)': \(error.localizedDescription)")
@@ -437,10 +446,23 @@ final class AutoStartSessionService {
                     settings: profile.notificationSettings
                 )
             }
+            return false
         }
     }
 
-    private func sendInitializationMessage(for profile: Profile) async throws -> Data {
+    /// Headers claude.ai expects on chat requests, matching a Safari session.
+    /// Without them Cloudflare or CSRF checks can reject the request.
+    private static func applyBrowserHeaders(to request: inout URLRequest, sessionKey: String) {
+        if let url = request.url {
+            request.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: url), forHTTPHeaderField: "Cookie")
+        }
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://claude.ai", forHTTPHeaderField: "Referer")
+        request.setValue("https://claude.ai", forHTTPHeaderField: "Origin")
+    }
+
+    private func sendInitializationMessage(for profile: Profile, onConversationCreated: () -> Void) async throws -> Data {
         guard let sessionKey = profile.claudeSessionKey,
               let orgId = profile.organizationId else {
             throw AppError(
@@ -456,12 +478,13 @@ final class AutoStartSessionService {
             .build()
 
         var conversationRequest = URLRequest(url: conversationURL)
-        conversationRequest.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: conversationURL), forHTTPHeaderField: "Cookie")
+        Self.applyBrowserHeaders(to: &conversationRequest, sessionKey: sessionKey)
         conversationRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         conversationRequest.httpMethod = "POST"
 
+        let requestedUUID = UUID().uuidString.lowercased()
         let conversationBody: [String: Any] = [
-            "uuid": UUID().uuidString.lowercased(),
+            "uuid": requestedUUID,
             "name": ""
         ]
         conversationRequest.httpBody = try JSONSerialization.data(withJSONObject: conversationBody)
@@ -473,10 +496,17 @@ final class AutoStartSessionService {
             throw AppError(code: .apiGenericError, message: "Failed to create conversation", isRecoverable: true)
         }
 
-        // Parse conversation UUID
-        guard let json = try? JSONSerialization.jsonObject(with: conversationData) as? [String: Any],
-              let conversationUUID = json["uuid"] as? String else {
-            throw AppError(code: .apiParsingFailed, message: "Failed to parse conversation", isRecoverable: false)
+        onConversationCreated()
+
+        // The conversation exists now. If the response cannot be parsed, fall
+        // back to the UUID we asked for, so it can still be used and deleted.
+        let json = try? JSONSerialization.jsonObject(with: conversationData) as? [String: Any]
+        let conversationUUID: String
+        if let parsed = json?["uuid"] as? String {
+            conversationUUID = parsed
+        } else {
+            LoggingService.shared.logWarning("Auto-start could not parse the conversation response; using the requested UUID")
+            conversationUUID = requestedUUID
         }
 
         // Send a minimal "Hi" message to initialize the session
@@ -485,7 +515,7 @@ final class AutoStartSessionService {
             .build()
 
         var messageRequest = URLRequest(url: messageURL)
-        messageRequest.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: messageURL), forHTTPHeaderField: "Cookie")
+        Self.applyBrowserHeaders(to: &messageRequest, sessionKey: sessionKey)
         messageRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         messageRequest.httpMethod = "POST"
 
@@ -531,7 +561,7 @@ final class AutoStartSessionService {
                 .build()
 
             var deleteRequest = URLRequest(url: deleteURL)
-            deleteRequest.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: deleteURL), forHTTPHeaderField: "Cookie")
+            Self.applyBrowserHeaders(to: &deleteRequest, sessionKey: sessionKey)
             deleteRequest.httpMethod = "DELETE"
 
             let (_, response) = try await URLSession.shared.data(for: deleteRequest)
