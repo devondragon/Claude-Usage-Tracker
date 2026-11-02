@@ -376,7 +376,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 3.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "HamedElfayome.Claude-Usage";
+				PRODUCT_BUNDLE_IDENTIFIER = com.devondragon.ClaudeUsage;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -398,11 +398,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Claude Usage/Claude UsageRelease.entitlements";
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 18;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = T77ZWDC739;
+				DEVELOPMENT_TEAM = NLLX25D2J2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -431,7 +431,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 3.3.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "HamedElfayome.Claude-Usage";
+				PRODUCT_BUNDLE_IDENTIFIER = com.devondragon.ClaudeUsage;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
@@ -464,7 +464,7 @@
 				INFOPLIST_FILE = "Claude Usage/Resources/Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "HamedElfayome.Claude-UsageTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.devondragon.ClaudeUsageTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -485,7 +485,7 @@
 				INFOPLIST_FILE = "Claude Usage/Resources/Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "HamedElfayome.Claude-UsageTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.devondragon.ClaudeUsageTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;

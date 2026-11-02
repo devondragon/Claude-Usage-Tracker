@@ -1,5 +1,10 @@
 name: Release
 
+# Fork note: needs this repo's own signing/notarization secrets
+# (DEVELOPER_CERTIFICATE_BASE*, CERTIFICATE_PASSWORD, APPLE_ID,
+# APPLE_ID_PASSWORD, TEAM_ID, RELEASE_TOKEN). The upstream appcast and
+# Homebrew workflows were removed; Sparkle is off until the fork has a feed.
+
 on:
   push:
     tags:
@@ -264,21 +269,7 @@ jobs:
             release/Claude-Usage.zip
             release/Claude-Usage.zip.sha256
         env:
-          # Use PAT instead of GITHUB_TOKEN to trigger downstream workflows
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-
-      - name: Trigger downstream workflows
-        # A release published with the default GITHUB_TOKEN emits no
-        # `release: published` event (recursion guard), and the RELEASE_TOKEN
-        # PAT fallback proved fragile (v3.3.0 shipped with neither downstream
-        # workflow firing). workflow_dispatch via the API is the documented
-        # chaining path and works with the default token.
-        run: |
-          gh workflow run generate-appcast.yml -f release_tag="${{ github.ref_name }}"
-          gh workflow run update-homebrew-cask.yml -f release_tag="${{ github.ref_name }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
 
       - name: Release Summary
         run: |
@@ -288,8 +279,3 @@ jobs:
           echo "✅ App notarized by Apple"
           echo "✅ Notarization ticket stapled to app"
           echo "✅ Release published to GitHub"
-          echo ""
-          echo "Next steps:"
-          echo "  - Appcast generation workflow will trigger automatically"
-          echo "  - Homebrew cask will update automatically"
-          echo "  - Users with automatic updates enabled will be notified"

@@ -14,7 +14,6 @@ struct AboutView: View {
     @State private var isLoadingContributors = false
     @State private var contributorsError: String?
     @State private var showResetConfirmation = false
-    @State private var showFeedbackForm = false
 
     private var appVersion: String {
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -41,7 +40,8 @@ struct AboutView: View {
                             .font(DesignTokens.Typography.caption)
                             .foregroundColor(.secondary)
 
-                        // Check for Updates button
+                        // Check for Updates button (only when an update feed is configured)
+                        if UpdateManager.isEnabled {
                         Button(action: {
                             UpdateManager.shared.checkForUpdates()
                         }) {
@@ -55,6 +55,7 @@ struct AboutView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 4)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -147,20 +148,10 @@ struct AboutView: View {
                         .font(DesignTokens.Typography.sectionTitle)
 
                     VStack(spacing: DesignTokens.Spacing.small) {
-                        LinkButton(title: "about.star_github".localized, icon: "star.fill") {
-                            if let url = URL(string: "https://github.com/hamed-elfayome/Claude-Usage-Tracker") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-
                         LinkButton(title: "about.report_issue".localized, icon: "exclamationmark.triangle") {
-                            if let url = URL(string: "https://github.com/hamed-elfayome/Claude-Usage-Tracker/issues") {
+                            if let url = URL(string: Constants.forkRepoURL + "/issues") {
                                 NSWorkspace.shared.open(url)
                             }
-                        }
-
-                        LinkButton(title: "about.send_feedback".localized, icon: "bubble.left.and.text.bubble.right") {
-                            showFeedbackForm = true
                         }
 
                         Divider()
@@ -205,23 +196,6 @@ struct AboutView: View {
             if contributors.isEmpty && !isLoadingContributors {
                 fetchContributors()
             }
-        }
-        .sheet(isPresented: $showFeedbackForm) {
-            FeedbackPromptView(
-                onSubmit: { _, _, _, _ in
-                    SharedDataStore.shared.saveHasSubmittedFeedback(true)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        showFeedbackForm = false
-                    }
-                },
-                onRemindLater: {
-                    showFeedbackForm = false
-                },
-                onDontAskAgain: {
-                    SharedDataStore.shared.saveNeverShowFeedbackPrompt(true)
-                    showFeedbackForm = false
-                }
-            )
         }
     }
 

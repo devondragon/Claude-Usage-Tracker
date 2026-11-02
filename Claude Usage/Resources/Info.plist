@@ -36,14 +36,12 @@
 	<false/>
 
 	<!-- Sparkle Update Configuration -->
-	<key>SUFeedURL</key>
-	<string>https://hamed-elfayome.github.io/Claude-Usage-Tracker/appcast.xml</string>
-
-	<key>SUPublicEDKey</key>
-	<string>1ol8Exuba8opOy5R93YCQVuBw5Y6q4MgtMrgnsh8Kec=</string>
+	<!-- SUFeedURL and SUPublicEDKey are intentionally absent: this fork has no
+	     appcast yet, and UpdateManager stays off without a feed URL. Add both
+	     keys (own feed + own EdDSA public key) to turn updates back on. -->
 
 	<key>SUEnableAutomaticChecks</key>
-	<true/>
+	<false/>
 
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>

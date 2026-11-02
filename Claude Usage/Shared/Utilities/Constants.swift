@@ -18,12 +18,6 @@ enum Constants {
         static let statuslineShowUsage = "statuslineShowUsage"
         static let statuslineShowProgressBar = "statuslineShowProgressBar"
 
-        // GitHub star prompt tracking
-        static let firstLaunchDate = "firstLaunchDate"
-        static let lastGitHubStarPromptDate = "lastGitHubStarPromptDate"
-        static let hasStarredGitHub = "hasStarredGitHub"
-        static let neverShowGitHubPrompt = "neverShowGitHubPrompt"
-
         // API usage tracking
         static let apiUsageData = "apiUsageData"
         static let apiTrackingEnabled = "apiTrackingEnabled"
@@ -162,20 +156,9 @@ enum Constants {
         static let critical: Double = 95.0
     }
 
-    // GitHub repository
-    static let githubRepoURL = "https://github.com/hamed-elfayome/Claude-Usage-Tracker"
-
-    // GitHub star prompt timing (in seconds)
-    enum GitHubPromptTiming {
-        static let initialDelay: TimeInterval = 24 * 60 * 60  // 1 day
-        static let reminderInterval: TimeInterval = 10 * 24 * 60 * 60  // 10 days (between 7-14 days)
-    }
-
-    // Feedback prompt timing (in seconds)
-    enum FeedbackPromptTiming {
-        static let initialDelay: TimeInterval = 7 * 24 * 60 * 60  // 7 days
-        static let reminderInterval: TimeInterval = 7 * 24 * 60 * 60  // 7 days
-    }
+    /// This fork's repository (issue links). `GitHub` below stays pointed at
+    /// upstream for the About page's contributor credits.
+    static let forkRepoURL = "https://github.com/devondragon/Claude-Usage-Tracker"
 
     // API Endpoints
     enum APIEndpoints {
