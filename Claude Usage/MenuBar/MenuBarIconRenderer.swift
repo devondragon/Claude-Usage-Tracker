@@ -73,6 +73,113 @@ final class MenuBarIconRenderer {
             )
         }
 
+        return render(
+            metricType: metricType,
+            config: config,
+            metricData: metricData,
+            usage: usage,
+            timeMarkerFraction: timeMarkerFraction,
+            paceStatus: paceStatus,
+            showPaceMarker: showPaceMarker,
+            isDarkMode: isDarkMode,
+            colorMode: colorMode,
+            singleColorHex: singleColorHex,
+            showIconName: showIconName,
+            showNextSessionTime: showNextSessionTime
+        )
+    }
+
+    /// Creates the monthly spend bar for a spend-limited profile, drawn in the
+    /// style of `config` like a session bar, labeled "$".
+    func createSpendImage(
+        config: MetricIconConfig,
+        globalConfig: MenuBarIconConfiguration,
+        usage: ClaudeUsage,
+        isDarkMode: Bool,
+        colorMode: MenuBarColorMode,
+        singleColorHex: String,
+        showIconName: Bool,
+        now: Date = Date()
+    ) -> NSImage {
+        let showRemaining = globalConfig.showRemainingPercentage
+        let used = usage.spendPercentage
+        let elapsed = SpendPeriod.containing(now).elapsedFraction(at: now)
+        let displayPercentage = UsageStatusCalculator.getDisplayPercentage(
+            usedPercentage: used,
+            showRemaining: showRemaining
+        )
+        let statusLevel = UsageStatusCalculator.calculateStatus(
+            usedPercentage: used,
+            showRemaining: showRemaining,
+            elapsedFraction: globalConfig.usePaceColoring ? elapsed : nil
+        )
+        let metricData = MetricData(
+            percentage: displayPercentage,
+            displayText: "\(Int(displayPercentage))%",
+            statusLevel: statusLevel,
+            sessionResetTime: nil
+        )
+        let timeMarkerFraction: CGFloat? = globalConfig.showTimeMarker
+            ? CGFloat(showRemaining ? 1.0 - elapsed : elapsed)
+            : nil
+        let paceStatus: PaceStatus? = globalConfig.showPaceMarker
+            ? PaceStatus.calculate(usedPercentage: used, elapsedFraction: elapsed)
+            : nil
+
+        labelOverride = .spend
+        defer { labelOverride = nil }
+        return render(
+            metricType: .session,
+            config: config,
+            metricData: metricData,
+            usage: usage,
+            timeMarkerFraction: timeMarkerFraction,
+            paceStatus: paceStatus,
+            showPaceMarker: globalConfig.showPaceMarker,
+            isDarkMode: isDarkMode,
+            colorMode: colorMode,
+            singleColorHex: singleColorHex,
+            showIconName: showIconName,
+            showNextSessionTime: false
+        )
+    }
+
+    // MARK: - Labels
+
+    private struct MetricLabels {
+        let full: String
+        let short: String
+        let prefix: String
+
+        static let spend = MetricLabels(full: "Spend", short: "$", prefix: "$:")
+    }
+
+    /// Set while drawing the spend bar so the shared style code labels it "$".
+    private var labelOverride: MetricLabels?
+
+    private func labels(for metricType: MenuBarMetricType) -> MetricLabels {
+        if let labelOverride { return labelOverride }
+        return MetricLabels(
+            full: metricType == .session ? "Session" : "Week",
+            short: metricType == .session ? "S" : "W",
+            prefix: metricType.prefixText
+        )
+    }
+
+    private func render(
+        metricType: MenuBarMetricType,
+        config: MetricIconConfig,
+        metricData: MetricData,
+        usage: ClaudeUsage,
+        timeMarkerFraction: CGFloat?,
+        paceStatus: PaceStatus?,
+        showPaceMarker: Bool,
+        isDarkMode: Bool,
+        colorMode: MenuBarColorMode,
+        singleColorHex: String,
+        showIconName: Bool,
+        showNextSessionTime: Bool
+    ) -> NSImage {
         // Render based on icon style for Session and Week
         switch config.iconStyle {
         case .battery:
@@ -356,7 +463,7 @@ final class MenuBarIconRenderer {
             }
         } else if showIconName {
             // Show full word: "Session" or "Week"
-            text = (metricType == .session ? "Session" : "Week") as NSString
+            text = labels(for: metricType).full as NSString
         } else {
             // No label mode - show percentage instead
             text = "\(Int(metricData.percentage))%" as NSString
@@ -409,7 +516,7 @@ final class MenuBarIconRenderer {
                 .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
                 .foregroundColor: textColor.withAlphaComponent(0.9)
             ]
-            let label = (metricType == .session ? "S" : "W") as NSString
+            let label = labels(for: metricType).short as NSString
             let labelSize = label.size(withAttributes: labelAttributes)
             label.draw(
                 at: NSPoint(x: xOffset, y: (height - labelSize.height) / 2),
@@ -490,7 +597,7 @@ final class MenuBarIconRenderer {
         var fullText = ""
 
         if showIconName {
-            fullText = "\(metricType.prefixText) \(metricData.displayText)"
+            fullText = "\(labels(for: metricType).prefix) \(metricData.displayText)"
         } else {
             fullText = metricData.displayText
         }
@@ -613,7 +720,7 @@ final class MenuBarIconRenderer {
                 .font: NSFont.systemFont(ofSize: 9, weight: .bold),
                 .foregroundColor: textColor
             ]
-            let label = (metricType == .session ? "S" : "W") as NSString
+            let label = labels(for: metricType).short as NSString
             let labelSize = label.size(withAttributes: labelAttributes)
             let labelX = center.x - labelSize.width / 2
             let labelY = center.y - labelSize.height / 2
@@ -659,7 +766,7 @@ final class MenuBarIconRenderer {
                 .font: NSFont.systemFont(ofSize: 9, weight: .medium),
                 .foregroundColor: textColor.withAlphaComponent(0.85)
             ]
-            let prefixText = metricType.prefixText as NSString
+            let prefixText = labels(for: metricType).prefix as NSString
             let prefixSize = prefixText.size(withAttributes: prefixAttributes)
             prefixText.draw(
                 at: NSPoint(x: xOffset, y: (height - prefixSize.height) / 2),
