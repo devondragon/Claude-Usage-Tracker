@@ -184,6 +184,7 @@ class UsageHistoryService {
             LoggingService.shared.logInfo("recordSessionReset: No previous usage data to record")
             return
         }
+        guard !usage.isSpendLimited else { return }
 
         // Only record if there was actual usage
         guard usage.sessionTokensUsed > 0 || usage.sessionPercentage > 0 else {
@@ -202,6 +203,7 @@ class UsageHistoryService {
             LoggingService.shared.logInfo("recordWeeklyReset: No previous usage data to record")
             return
         }
+        guard !usage.isSpendLimited else { return }
 
         // Only record if there was actual usage
         guard usage.weeklyTokensUsed > 0 || usage.weeklyPercentage > 0 else {
@@ -238,6 +240,8 @@ class UsageHistoryService {
 
     /// Records session usage periodically (every 10 minutes)
     func recordSessionPeriodic(for profileId: UUID, usage: ClaudeUsage, provider: Provider = .anthropic) {
+        // Spend-limited accounts have no session or weekly usage to chart.
+        guard !usage.isSpendLimited else { return }
         let now = Date()
 
         // Check if enough time has passed since last recording (using persisted timestamp)
@@ -265,6 +269,7 @@ class UsageHistoryService {
 
     /// Records weekly usage periodically (every 2 hours)
     func recordWeeklyPeriodic(for profileId: UUID, usage: ClaudeUsage, provider: Provider = .anthropic) {
+        guard !usage.isSpendLimited else { return }
         let now = Date()
 
         // Check if enough time has passed since last recording (using persisted timestamp)
