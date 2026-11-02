@@ -50,6 +50,10 @@ final class AutoStartSessionService {
 
     private let injectedLoginResolver: ((Profile) -> Result<AutoStartLogin, AutoStartSkipReason>)?
     private let injectedUsageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)?
+    private let injectedProfiles: (() -> [Profile])?
+
+    /// True between `start()` and `stop()`. Checks and the one-shot timer do nothing otherwise.
+    private(set) var isRunning = false
 
     /// Profiles with a check running. A trigger that overlaps a running check
     /// for the same profile skips it, so one window is never pinged twice.
@@ -71,7 +75,8 @@ final class AutoStartSessionService {
         calendar: Calendar = .autoupdatingCurrent,
         defaults: UserDefaults = .standard,
         loginResolver: ((Profile) -> Result<AutoStartLogin, AutoStartSkipReason>)? = nil,
-        usageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)? = nil
+        usageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)? = nil,
+        profiles: (() -> [Profile])? = nil
     ) {
         self.profileManager = ProfileManager.shared
         self.notificationManager = NotificationManager.shared
@@ -83,11 +88,13 @@ final class AutoStartSessionService {
         self.statusStore = AutoStartStatusStore(defaults: defaults)
         self.injectedLoginResolver = loginResolver
         self.injectedUsageReader = usageReader
+        self.injectedProfiles = profiles
     }
 
     // MARK: - Lifecycle
 
     func start() {
+        isRunning = true
         // Start 5-minute check timer with tolerance for energy efficiency
         let timer = Timer.scheduledTimer(
             withTimeInterval: 300, // 5 minutes
@@ -136,6 +143,7 @@ final class AutoStartSessionService {
     }
 
     func stop() {
+        isRunning = false
         checkTimer?.invalidate()
         checkTimer = nil
         oneShotTimer?.invalidate()
@@ -157,8 +165,10 @@ final class AutoStartSessionService {
     // MARK: - Profile Checking
 
     /// Performs check with debouncing to prevent duplicate checks
-    private func performCheckIfNeeded(source: String) async {
+    func performCheckIfNeeded(source: String) async {
+        guard isRunning else { return }
         // Re-arm even when debounced: the trigger may have been the one-shot timer.
+        // A check still running when `stop()` is called does not re-arm (see `armOneShotTimer`).
         defer { armOneShotTimer() }
 
         // Debounce: Don't check if we checked less than 10 seconds ago
@@ -175,7 +185,7 @@ final class AutoStartSessionService {
     private func checkAllProfiles(source: String) async {
         LoggingService.shared.logDebug("AutoStartSessionService: Checking all profiles for auto-start (source: \(source))")
 
-        let profiles = profileManager.profiles.filter(isEligible)
+        let profiles = currentProfiles().filter(isEligible)
         guard !profiles.isEmpty else {
             LoggingService.shared.logDebug("No profiles with auto-start enabled")
             return
@@ -184,6 +194,10 @@ final class AutoStartSessionService {
         for profile in profiles {
             await checkProfile(profile)
         }
+    }
+
+    private func currentProfiles() -> [Profile] {
+        injectedProfiles?() ?? profileManager.profiles
     }
 
     private func isEligible(_ profile: Profile) -> Bool {
@@ -197,9 +211,13 @@ final class AutoStartSessionService {
         // so providers without it are skipped by design.
         guard profile.provider.descriptor.capabilities.autoStartSession else {
             LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - provider does not support auto-start")
+            knownResetTimes.removeValue(forKey: profile.id)
             return
         }
-        guard profile.autoStartSessionEnabled else { return }
+        guard profile.autoStartSessionEnabled else {
+            knownResetTimes.removeValue(forKey: profile.id)
+            return
+        }
 
         // Claim the profile before the first suspension point.
         guard !inFlight.contains(profile.id) else {
@@ -217,22 +235,26 @@ final class AutoStartSessionService {
         }
 
         let login: AutoStartLogin
-        switch resolveLogin(for: profile) {
+        let (resolution, defaultCredentials) = resolveLogin(for: profile)
+        switch resolution {
         case .success(let resolved):
             login = resolved
         case .failure(let reason):
+            knownResetTimes.removeValue(forKey: profile.id)
             logSkip(reason, for: profile, at: checkStart)
             return
         }
 
-        let reading = await readUsage(for: profile, login: login)
+        let reading = await readUsage(for: profile, login: login, defaultCredentials: defaultCredentials)
         let checkTime = now()
 
+        // Only a live reading says whether a window is open. Any other reading
+        // drops the remembered reset time, so a stale one cannot drive the
+        // one-shot timer.
+        knownResetTimes.removeValue(forKey: profile.id)
         if case .live(let usage, let hasOpenWindow) = reading {
             if hasOpenWindow {
                 knownResetTimes[profile.id] = usage.sessionResetTime
-            } else {
-                knownResetTimes.removeValue(forKey: profile.id)
             }
             // A window seen open, or an account with no windows, ends the
             // current run of attempts.
@@ -353,24 +375,27 @@ final class AutoStartSessionService {
 
     // MARK: - Login and Usage
 
-    private func resolveLogin(for profile: Profile) -> Result<AutoStartLogin, AutoStartSkipReason> {
-        if let injectedLoginResolver { return injectedLoginResolver(profile) }
+    /// The profile's login, plus the default login's credentials JSON when it
+    /// was read, so the usage read does not run `security` a second time.
+    private func resolveLogin(for profile: Profile) -> (Result<AutoStartLogin, AutoStartSkipReason>, defaultCredentials: String?) {
+        if let injectedLoginResolver { return (injectedLoginResolver(profile), nil) }
 
         let sync = ClaudeCodeSyncService.shared
         // The default login's credentials and account matter only for a profile
         // that is not linked to its own config dir; skip the reads otherwise.
         let linked = sync.pinnedConfigDirService(of: profile) != nil
-        let hasDefaultCredentials = linked ? false : ((try? sync.readSystemCredentials()) ?? nil) != nil
-        return ClaudeCLIPing.resolveLogin(
+        let defaultCredentials: String? = linked ? nil : ((try? sync.readSystemCredentials()) ?? nil)
+        let result = ClaudeCLIPing.resolveLogin(
             customKeychainService: profile.customKeychainServiceName,
             profileAccountJSON: profile.oauthAccountJSON,
             defaultAccountJSON: linked ? nil : sync.readOAuthAccount(),
-            hasCliCredentials: hasDefaultCredentials,
+            hasCliCredentials: defaultCredentials != nil,
             configDirPath: { sync.configDirPath(forKeychainService: $0) }
         )
+        return (result, defaultCredentials)
     }
 
-    private func readUsage(for profile: Profile, login: AutoStartLogin) async -> AutoStartUsageReading {
+    private func readUsage(for profile: Profile, login: AutoStartLogin, defaultCredentials: String?) async -> AutoStartUsageReading {
         if let injectedUsageReader { return await injectedUsageReader(profile, login) }
 
         if profile.hasClaudeAI {
@@ -391,21 +416,18 @@ final class AutoStartSessionService {
             }
         }
 
-        return await readUsageWithClaudeCodeToken(login: login)
+        return await readUsageWithClaudeCodeToken(login: login, defaultCredentials: defaultCredentials)
     }
 
     /// Reads usage with the login's current access token. Never refreshes the
     /// token: the CLI owns it and refreshes it when the ping runs.
-    private func readUsageWithClaudeCodeToken(login: AutoStartLogin) async -> AutoStartUsageReading {
+    private func readUsageWithClaudeCodeToken(login: AutoStartLogin, defaultCredentials: String?) async -> AutoStartUsageReading {
         let sync = ClaudeCodeSyncService.shared
         let credentials: String?
         switch login {
         case .defaultLogin:
-            do {
-                credentials = try sync.readSystemCredentials()
-            } catch {
-                return .failed("could not read Claude Code credentials: \(error.localizedDescription)")
-            }
+            // Read once during login resolution; the default login is chosen only when it was found.
+            credentials = defaultCredentials
         case .configDir(_, let keychainService):
             credentials = sync.readKeychainCredentials(serviceName: keychainService)
         }
@@ -429,7 +451,7 @@ final class AutoStartSessionService {
             }
             switch http.statusCode {
             case 200:
-                let (usage, hasOpenWindow) = try Self.parseUsageResponse(data)
+                let (usage, hasOpenWindow) = try Self.parseUsageResponse(data, now: now())
                 return .live(usage, hasOpenWindow: hasOpenWindow)
             case 401, 403:
                 return .tokenExpired
@@ -477,12 +499,12 @@ final class AutoStartSessionService {
             )
         }
 
-        return try Self.parseUsageResponse(data)
+        return try Self.parseUsageResponse(data, now: now())
     }
 
     // MARK: - Usage Parsing
 
-    static func parseUsageResponse(_ data: Data) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
+    static func parseUsageResponse(_ data: Data, now: Date = Date()) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AppError(code: .apiParsingFailed, message: "Failed to parse usage data", isRecoverable: false)
         }
@@ -506,7 +528,7 @@ final class AutoStartSessionService {
             if let resetsAt = fiveHour["resets_at"] as? String {
                 if let parsed = parseResetDate(resetsAt) {
                     sessionResetTime = parsed
-                    hasOpenWindow = parsed > Date()
+                    hasOpenWindow = parsed > now
                 } else {
                     // Present but in an unknown format: assume a window is open
                     // rather than risk starting a second one.
@@ -630,18 +652,7 @@ final class AutoStartSessionService {
     private func armOneShotTimer() {
         oneShotTimer?.invalidate()
         oneShotTimer = nil
-
-        let current = now()
-        let profiles = profileManager.profiles.filter(isEligible)
-        let resets = profiles
-            .filter { AutoStartSchedulePolicy.isInSchedule($0.effectiveAutoStartSchedule, at: current, calendar: calendar) }
-            .compactMap { knownResetTimes[$0.id] }
-        guard let fireDate = Self.nextCheckDate(
-            now: current,
-            schedules: profiles.map(\.effectiveAutoStartSchedule),
-            openWindowResets: resets,
-            calendar: calendar
-        ) else { return }
+        guard isRunning, let fireDate = nextOneShotDate() else { return }
 
         let timer = Timer(fire: fireDate, interval: 0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -653,6 +664,26 @@ final class AutoStartSessionService {
         oneShotTimer = timer
         LoggingService.shared.logDebug("Auto-start: next scheduled check at \(fireDate)")
     }
+
+    /// When the one-shot timer should fire for the current profiles. Reset times
+    /// already past are ignored; the repeating check covers those.
+    func nextOneShotDate() -> Date? {
+        let current = now()
+        let profiles = currentProfiles().filter(isEligible)
+        let resets = profiles
+            .filter { AutoStartSchedulePolicy.isInSchedule($0.effectiveAutoStartSchedule, at: current, calendar: calendar) }
+            .compactMap { knownResetTimes[$0.id] }
+            .filter { $0 > current }
+        return Self.nextCheckDate(
+            now: current,
+            schedules: profiles.map(\.effectiveAutoStartSchedule),
+            openWindowResets: resets,
+            calendar: calendar
+        )
+    }
+
+    /// Whether a one-shot check is scheduled. For tests.
+    var hasPendingOneShot: Bool { oneShotTimer != nil }
 
     /// Earliest of each schedule's next start and each open window's reset plus
     /// `resetSlack`, but never sooner than `minimumTimerDelay` from now. Nil when

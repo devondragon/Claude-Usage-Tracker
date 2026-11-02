@@ -80,19 +80,23 @@ final class AutoStartSessionServiceTests: XCTestCase {
     }
 
     private final class Counter { var value = 0 }
+    private final class Clock { var now: Date; init(_ now: Date) { self.now = now } }
 
     private func makeService(
         runner: FakeRunner,
         locator: ClaudeBinaryLocator? = nil,
-        now: Date,
+        now: Date? = nil,
+        clock: Clock? = nil,
         login: Result<AutoStartLogin, AutoStartSkipReason> = .success(.defaultLogin),
         reads: Counter = Counter(),
+        profiles: [Profile] = [],
         reading: @escaping () -> AutoStartUsageReading
     ) -> AutoStartSessionService {
-        AutoStartSessionService(
+        let clock = clock ?? Clock(now ?? monday(10))
+        return AutoStartSessionService(
             runner: runner,
             locator: locator ?? self.locator(),
-            now: { now },
+            now: { clock.now },
             calendar: calendar,
             defaults: defaults,
             loginResolver: { _ in login },
@@ -100,8 +104,13 @@ final class AutoStartSessionServiceTests: XCTestCase {
                 reads.value += 1
                 await Task.yield()
                 return reading()
-            }
+            },
+            profiles: { profiles }
         )
+    }
+
+    private var tuesdaySeven: Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 7))!
     }
 
     // MARK: - Checks
@@ -231,15 +240,32 @@ final class AutoStartSessionServiceTests: XCTestCase {
 
     func testBinaryNotFoundSkipsAndRecordsOncePerDay() async {
         let runner = FakeRunner()
-        let service = makeService(runner: runner, locator: locator(found: false), now: monday(10)) { .tokenExpired }
+        let clock = Clock(monday(10))
+        let service = makeService(runner: runner, locator: locator(found: false), clock: clock) { .tokenExpired }
         let p = profile()
+        var records = 0
+        let observer = NotificationCenter.default.addObserver(forName: .autoStartResultChanged, object: nil, queue: nil) { note in
+            if note.userInfo?["profileID"] as? UUID == p.id { records += 1 }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
 
+        await service.checkProfile(p)
+        clock.now = monday(10, 5)
         await service.checkProfile(p)
 
         XCTAssertEqual(runner.calls, 0)
         XCTAssertNil(AutoStartAttemptStore(defaults: defaults).state(for: p.id))
-        let result = AutoStartStatusStore(defaults: defaults).lastResult(for: p.id)
-        XCTAssertEqual(result?.success, false)
+        XCTAssertEqual(records, 1, "a second miss on the same day is not recorded again")
+        let first = AutoStartStatusStore(defaults: defaults).lastResult(for: p.id)
+        XCTAssertEqual(first?.success, false)
+        XCTAssertEqual(first?.date, monday(10))
+
+        let tuesday = calendar.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 10))!
+        clock.now = tuesday
+        await service.checkProfile(p)
+
+        XCTAssertEqual(records, 2)
+        XCTAssertEqual(AutoStartStatusStore(defaults: defaults).lastResult(for: p.id)?.date, tuesday)
     }
 
     func testLaunchFailureInvalidatesLocator() async {
@@ -262,6 +288,102 @@ final class AutoStartSessionServiceTests: XCTestCase {
     }
 
     // MARK: - One-Shot Timer
+
+    func testFailedReadingDropsRememberedResetTime() async {
+        var open = ClaudeUsage.empty
+        open.sessionResetTime = monday(11)
+        var next: AutoStartUsageReading = .live(open, hasOpenWindow: true)
+        let p = profile()
+        let service = makeService(runner: FakeRunner(), now: monday(10), profiles: [p]) { next }
+
+        await service.checkProfile(p)
+        XCTAssertEqual(service.nextOneShotDate(), monday(11).addingTimeInterval(30))
+
+        next = .failed("status 429")
+        await service.checkProfile(p)
+        XCTAssertEqual(service.nextOneShotDate(), tuesdaySeven)
+    }
+
+    func testLoginFailureDropsRememberedResetTime() async {
+        var open = ClaudeUsage.empty
+        open.sessionResetTime = monday(11)
+        let p = profile()
+        var login: Result<AutoStartLogin, AutoStartSkipReason> = .success(.defaultLogin)
+        let service = AutoStartSessionService(
+            runner: FakeRunner(),
+            locator: locator(),
+            now: { [unowned self] in self.monday(10) },
+            calendar: calendar,
+            defaults: defaults,
+            loginResolver: { _ in login },
+            usageReader: { _, _ in .live(open, hasOpenWindow: true) },
+            profiles: { [p] }
+        )
+
+        await service.checkProfile(p)
+        XCTAssertEqual(service.nextOneShotDate(), monday(11).addingTimeInterval(30))
+
+        login = .failure(.accountMismatch)
+        await service.checkProfile(p)
+        XCTAssertEqual(service.nextOneShotDate(), tuesdaySeven)
+    }
+
+    func testPastResetTimeIsIgnored() async {
+        var open = ClaudeUsage.empty
+        open.sessionResetTime = monday(11)
+        let p = profile()
+        let clock = Clock(monday(10))
+        let service = makeService(runner: FakeRunner(), clock: clock, profiles: [p]) { .live(open, hasOpenWindow: true) }
+
+        await service.checkProfile(p)
+        clock.now = monday(11, 0).addingTimeInterval(10)
+
+        XCTAssertEqual(service.nextOneShotDate(), tuesdaySeven, "a reset already past must not schedule a check a minute out")
+    }
+
+    func testStoppedServiceDoesNotCheckOrArm() async {
+        let runner = FakeRunner()
+        let p = profile()
+        let service = makeService(runner: runner, profiles: [p]) { .tokenExpired }
+
+        await service.performCheckIfNeeded(source: "test")
+
+        XCTAssertFalse(service.isRunning)
+        XCTAssertEqual(runner.calls, 0)
+        XCTAssertFalse(service.hasPendingOneShot)
+    }
+
+    func testStopDuringCheckDoesNotRearm() async {
+        final class Box { weak var service: AutoStartSessionService? }
+        let box = Box()
+        let runner = FakeRunner()
+        var open = ClaudeUsage.empty
+        open.sessionResetTime = monday(11)
+        let p = profile()
+        let service = AutoStartSessionService(
+            runner: runner,
+            locator: locator(),
+            now: { [unowned self] in self.monday(10) },
+            calendar: calendar,
+            defaults: defaults,
+            loginResolver: { _ in .success(.defaultLogin) },
+            usageReader: { _, _ in
+                await Task.yield()
+                box.service?.stop()
+                return .live(open, hasOpenWindow: true)
+            },
+            profiles: { [p] }
+        )
+        box.service = service
+
+        service.start()
+        XCTAssertTrue(service.isRunning)
+        await service.performCheckIfNeeded(source: "test")
+        for _ in 0..<5 { await Task.yield() }
+
+        XCTAssertFalse(service.isRunning)
+        XCTAssertFalse(service.hasPendingOneShot)
+    }
 
     func testNextCheckDatePicksEarliest() {
         let now = monday(10)
@@ -338,6 +460,14 @@ final class AutoStartSessionServiceTests: XCTestCase {
         let (usage, hasOpenWindow) = try AutoStartSessionService.parseUsageResponse(Data(json.utf8))
         XCTAssertFalse(hasOpenWindow)
         XCTAssertFalse(usage.hasNoUsageWindows)
+    }
+
+    func testOpenWindowUsesInjectedClock() throws {
+        let json = #"{"five_hour": {"utilization": 0.0, "resets_at": "2026-11-03T02:10:00+00:00"}}"#
+        let before = ISO8601DateFormatter().date(from: "2026-11-03T00:00:00Z")!
+        let after = ISO8601DateFormatter().date(from: "2026-11-03T03:00:00Z")!
+        XCTAssertTrue(try AutoStartSessionService.parseUsageResponse(Data(json.utf8), now: before).hasOpenWindow)
+        XCTAssertFalse(try AutoStartSessionService.parseUsageResponse(Data(json.utf8), now: after).hasOpenWindow)
     }
 
     func testUnreadableResetsAtCountsAsOpen() throws {
