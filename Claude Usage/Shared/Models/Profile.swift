@@ -244,7 +244,9 @@ struct Profile: Codable, Identifiable, Equatable {
     var hasUsageCredentials: Bool {
         switch provider {
         case .anthropic:
-            return hasClaudeAI || hasAPIConsole || hasValidCLIOAuth
+            // A pinned profile reads its entry on every refresh, so the copied token going
+            // stale does not mean it has no credentials.
+            return hasClaudeAI || hasAPIConsole || hasValidCLIOAuth || customKeychainServiceName != nil
         case .codex:
             return codexCredentialsJSON != nil || CodexAuthService.shared.authFileExists()
         }

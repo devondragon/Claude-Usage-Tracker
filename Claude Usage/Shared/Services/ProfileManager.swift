@@ -447,6 +447,19 @@ class ProfileManager: ObservableObject {
     // MARK: - Usage Data
 
     /// Saves Claude usage data for a specific profile
+    /// Copies CLI credential fields that `ClaudeCodeSyncService` wrote straight to the store
+    /// into the in-memory profile, so the next whole-array save does not revert them.
+    func adoptStoredCLICredentials(for profileId: UUID) {
+        guard let stored = profileStore.loadProfiles().first(where: { $0.id == profileId }),
+              let index = profiles.firstIndex(where: { $0.id == profileId }) else { return }
+        profiles[index].cliCredentialsJSON = stored.cliCredentialsJSON
+        profiles[index].oauthAccountJSON = stored.oauthAccountJSON
+        profiles[index].cliAccountSyncedAt = stored.cliAccountSyncedAt
+        if activeProfile?.id == profileId {
+            activeProfile = profiles[index]
+        }
+    }
+
     func saveClaudeUsage(_ usage: ClaudeUsage, for profileId: UUID) {
         guard let index = profiles.firstIndex(where: { $0.id == profileId }) else {
             LoggingService.shared.logError("saveClaudeUsage: Profile not found with ID: \(profileId)")

@@ -63,6 +63,13 @@ final class ClaudeCodeAccountsTests: XCTestCase {
         XCTAssertTrue(accounts.isEmpty)
     }
 
+    func testPinnedProfileCountsAsHavingUsageCredentials() {
+        var profile = Profile(name: "Tribe")
+        XCTAssertFalse(profile.hasUsageCredentials)
+        profile.customKeychainServiceName = "Claude Code-credentials-20386361"
+        XCTAssertTrue(profile.hasUsageCredentials)
+    }
+
     // MARK: - Matching
 
     private func account(_ dir: String, email: String) -> ClaudeCodeSyncService.ConfigDirAccount {

@@ -299,10 +299,17 @@ class ClaudeCodeSyncService {
 
         // Honor any previously persisted resolution — this avoids the expensive
         // `dump-keychain` shell-out on every launch after the first.
+        // A hashed name persisted by older builds may belong to another config dir (they took
+        // the first hashed entry found); only the default dir's own hash is kept.
         if let persisted = UserDefaults.standard.string(forKey: Self.persistedServiceNameKey),
            !persisted.isEmpty {
-            resolvedServiceName = persisted
-            return persisted
+            if persisted == Self.legacyServiceName || persisted == defaultDirHashedServiceName {
+                resolvedServiceName = persisted
+                return persisted
+            }
+            LoggingService.shared.log("resolveServiceName: discarding persisted entry \(persisted), which is not the default config dir's")
+            UserDefaults.standard.removeObject(forKey: Self.persistedServiceNameKey)
+            UserDefaults.standard.removeObject(forKey: Self.discoveryAttemptedKey)
         }
 
         // Try legacy name first (fast path, bounded by timeout)
@@ -402,40 +409,20 @@ class ClaudeCodeSyncService {
         return found.sorted()
     }
 
-    /// Searches the keychain for a hashed service name matching "Claude Code-credentials-*".
-    /// This uses `security dump-keychain` which can be slow or hang on some macOS
-    /// versions, so it is bounded by a longer timeout and only called once per machine.
+    /// The hashed entry Claude Code uses for `~/.claude` when `CLAUDE_CONFIG_DIR` is set to
+    /// that path explicitly. Any other hashed entry belongs to a different config dir, so it
+    /// must never be treated as the default login.
+    private var defaultDirHashedServiceName: String {
+        let path = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
+        return "\(Self.legacyServiceName)-\(sha256HexPrefix(path, length: 8))"
+    }
+
+    /// Returns `defaultDirHashedServiceName` when that entry exists. Uses one attribute-only
+    /// keychain query instead of `security dump-keychain`, which can hang (#179) and which
+    /// previously returned the first hashed entry of any config dir.
     private func findHashedServiceName() -> String? {
-        // `dump-keychain` enumerates every keychain item and can be slow on large
-        // keychains; give it a slightly more generous budget than other commands
-        // but still a hard ceiling to prevent indefinite hangs.
-        guard let result = runSecurityCommand(arguments: ["dump-keychain"], timeout: 5.0) else {
-            return nil
-        }
-
-        if result.timedOut {
-            LoggingService.shared.log("findHashedServiceName: `security dump-keychain` timed out — falling back to legacy name")
-            return nil
-        }
-
-        guard result.exitCode == 0 else { return nil }
-
-        let output = result.stdout
-        let prefix = "Claude Code-credentials-"
-
-        // Parse service names from dump-keychain output (format: "svce"<blob>="ServiceName")
-        for line in output.components(separatedBy: "\n") {
-            guard line.contains("\"svce\""), line.contains(prefix) else { continue }
-            // Extract the value between quotes after the =
-            if let equalsRange = line.range(of: "=\""),
-               let endQuoteRange = line.range(of: "\"", range: equalsRange.upperBound..<line.endIndex) {
-                let name = String(line[equalsRange.upperBound..<endQuoteRange.lowerBound])
-                if name.hasPrefix(prefix) {
-                    return name
-                }
-            }
-        }
-        return nil
+        let expected = defaultDirHashedServiceName
+        return listClaudeCodeKeychainServices().contains(expected) ? expected : nil
     }
 
     /// Invalidates the cached service name, forcing re-discovery on next access.
@@ -672,11 +659,18 @@ class ClaudeCodeSyncService {
         LoggingService.shared.log("Linked profile '\(profiles[index].name)' to \(account.directoryName) (\(account.serviceName))")
     }
 
-    /// Removes the pin. The copied token stays on the profile until it expires or is removed.
+    /// Removes the pin and the credentials copied from the dir.
     func unlinkProfile(_ profileId: UUID) {
         var profiles = ProfileStore.shared.loadProfiles()
         guard let index = profiles.firstIndex(where: { $0.id == profileId }) else { return }
+        // Drop the tokens and account copied from the dir as well: an unpinned profile's
+        // snapshot is written to the default login on switch, which would log the default
+        // `claude` into the dir's account and share its refresh token (#355).
         profiles[index].customKeychainServiceName = nil
+        profiles[index].cliCredentialsJSON = nil
+        profiles[index].oauthAccountJSON = nil
+        profiles[index].cliAccountSyncedAt = nil
+        profiles[index].hasCliAccount = false
         ProfileStore.shared.saveProfiles(profiles)
         LoggingService.shared.log("Unlinked profile '\(profiles[index].name)' from its Claude Code config dir")
     }
@@ -852,12 +846,11 @@ class ClaudeCodeSyncService {
             throw ClaudeCodeError.noProfileCredentials
         }
 
-        // A pinned profile reads its Claude Code config dir's entry and never writes to
-        // a CLI-owned login. Writing a non-default pin's token into the default entry and
-        // `~/.claude.json` would log the default `claude` into that account (#355), and
-        // rewriting the default entry for a default pin can overwrite a token Claude Code
-        // just rotated.
-        if let pinned = profile.customKeychainServiceName {
+        // A profile pinned to a non-default config dir belongs to that dir, which reads its
+        // own entry. Writing its token into the default entry and `~/.claude.json` would log
+        // the default `claude` into that account (#355). A profile pinned to the default
+        // entry keeps the switching behavior: the switch puts its account back there.
+        if let pinned = pinnedConfigDirService(of: profile) {
             LoggingService.shared.log("Profile '\(profile.name)' is pinned to \(pinned); leaving the default Claude Code login untouched")
             return
         }
@@ -1221,6 +1214,9 @@ class ClaudeCodeSyncService {
         }
         reloaded[idx].cliCredentialsJSON = json
         ProfileStore.shared.saveProfiles(reloaded)
+        // ProfileManager saves its whole in-memory array (e.g. saveClaudeUsage on every
+        // refresh); without this, that save puts the old token back in the store.
+        ProfileManager.shared.adoptStoredCLICredentials(for: profileId)
     }
 
     /// Merges an OAuth refresh response into the existing `claudeAiOauth` payload,
