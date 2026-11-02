@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Дизайн";
 "menubar.extra_usage" = "Додаткове використання";
+"menubar.monthly_spend" = "Щомісячні витрати";
+"menubar.spend_of_limit" = "%@ з %@";
 "menubar.api_credits" = "Кредити API";
 "menubar.api_cost" = "Вартість API";
 "menubar.this_month" = "Цього місяця";

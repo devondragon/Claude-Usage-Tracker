@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Tasarım";
 "menubar.extra_usage" = "Ek Kullanım";
+"menubar.monthly_spend" = "Aylık harcama";
+"menubar.spend_of_limit" = "%@ / %@";
 "menubar.api_credits" = "API Kredileri";
 "menubar.api_cost" = "API Maliyeti";
 "menubar.this_month" = "Bu Ay";

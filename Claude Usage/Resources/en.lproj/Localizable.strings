@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Design";
 "menubar.extra_usage" = "Extra Usage";
+"menubar.monthly_spend" = "Monthly spend";
+"menubar.spend_of_limit" = "%@ of %@";
 "menubar.api_credits" = "API Credits";
 "menubar.api_cost" = "API Cost";
 "menubar.this_month" = "This Month";

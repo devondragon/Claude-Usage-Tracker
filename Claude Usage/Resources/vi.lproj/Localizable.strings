@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Thiết kế";
 "menubar.extra_usage" = "Mức dùng thêm";
+"menubar.monthly_spend" = "Chi tiêu hàng tháng";
+"menubar.spend_of_limit" = "%@ / %@";
 "menubar.api_credits" = "Tín dụng API";
 "menubar.api_cost" = "Chi phí API";
 "menubar.this_month" = "Tháng này";
