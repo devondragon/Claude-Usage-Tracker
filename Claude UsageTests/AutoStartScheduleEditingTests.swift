@@ -49,4 +49,28 @@ final class AutoStartScheduleEditingTests: XCTestCase {
         XCTAssertEqual(AutoStartScheduleEditing.clamped(window(100, 2000)), window(100, 1440))
         XCTAssertEqual(AutoStartScheduleEditing.clamped(window(-5, 10)), window(0, 10))
     }
+
+    // MARK: - Last failure line
+
+    func testFailureTextWithMessage() {
+        XCTAssertEqual(
+            AutoStartScheduleRows.failureText(format: "Last attempt failed %@: %@", when: "Nov 2", message: "claude timed out"),
+            "Last attempt failed Nov 2: claude timed out"
+        )
+    }
+
+    func testFailureTextWithoutMessageDropsSeparator() {
+        XCTAssertEqual(
+            AutoStartScheduleRows.failureText(format: "Last attempt failed %@: %@", when: "Nov 2", message: nil),
+            "Last attempt failed Nov 2"
+        )
+        XCTAssertEqual(
+            AutoStartScheduleRows.failureText(format: "Dernière tentative échouée %@ : %@", when: "2 nov.", message: ""),
+            "Dernière tentative échouée 2 nov."
+        )
+        XCTAssertEqual(
+            AutoStartScheduleRows.failureText(format: "上次尝试失败 %@\u{FF1A}%@", when: "11月2日", message: nil),
+            "上次尝试失败 11月2日"
+        )
+    }
 }

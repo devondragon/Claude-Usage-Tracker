@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Claude_Usage
 
 /// Counts runs and records the last request; never launches a process.
@@ -236,6 +237,11 @@ final class AutoStartSessionServiceTests: XCTestCase {
         await service.checkProfile(profile())
 
         XCTAssertEqual(runner.lastEnvironment?[ClaudeCLIPing.configDirVariable], "/Users/x/.claude-work")
+        XCTAssertEqual(
+            runner.lastEnvironment?["PATH"]?.split(separator: ":").first.map(String.init),
+            "/fake/bin",
+            "the located binary's directory leads PATH"
+        )
     }
 
     func testBinaryNotFoundSkipsAndRecordsOncePerDay() async {
@@ -383,6 +389,47 @@ final class AutoStartSessionServiceTests: XCTestCase {
 
         XCTAssertFalse(service.isRunning)
         XCTAssertFalse(service.hasPendingOneShot)
+    }
+
+    func testProfileChangeRearmsOneShotTimerWhileRunning() async throws {
+        final class ProfileBox { var profiles: [Profile] = [] }
+        let box = ProfileBox()
+        var p = profile()
+        p.autoStartSessionEnabled = false
+        box.profiles = [p]
+        let changes = CurrentValueSubject<[Profile], Never>(box.profiles)
+        let service = AutoStartSessionService(
+            runner: FakeRunner(),
+            locator: locator(),
+            now: { [unowned self] in self.monday(10) },
+            calendar: calendar,
+            defaults: defaults,
+            loginResolver: { _ in .success(.defaultLogin) },
+            usageReader: { _, _ in .tokenExpired },
+            profiles: { box.profiles },
+            profileChanges: changes.eraseToAnyPublisher()
+        )
+        defer { service.stop() }
+
+        service.start()
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertFalse(service.hasPendingOneShot, "no profile has auto-start on yet")
+
+        p.autoStartSessionEnabled = true
+        box.profiles = [p]
+        changes.send(box.profiles)
+        for _ in 0..<50 where !service.hasPendingOneShot {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(service.hasPendingOneShot, "turning auto-start on arms the one-shot timer")
+
+        p.autoStartSessionEnabled = false
+        box.profiles = [p]
+        changes.send(box.profiles)
+        for _ in 0..<50 where service.hasPendingOneShot {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertFalse(service.hasPendingOneShot, "turning auto-start off clears the one-shot timer")
     }
 
     func testNextCheckDatePicksEarliest() {

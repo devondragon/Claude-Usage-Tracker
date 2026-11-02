@@ -57,7 +57,7 @@ enum AutoStartSchedulePolicy {
             if start > date { return start }
         }
         // Unreachable for valid minutes; fall back to a day later.
-        return date.addingTimeInterval(86_400)
+        return calendar.date(byAdding: .day, value: 1, to: date) ?? date
     }
 
     private static func isWeekend(_ date: Date, calendar: Calendar) -> Bool {

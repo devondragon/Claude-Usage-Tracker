@@ -91,16 +91,42 @@ final class ClaudeCLIPingTests: XCTestCase {
     }
 
     func testDefaultLoginRemovesConfigDirVariable() {
-        let env = ClaudeCLIPing.environment(for: .defaultLogin, base: ["CLAUDE_CONFIG_DIR": "/x", "PATH": "/usr/bin"])
+        let env = ClaudeCLIPing.environment(
+            for: .defaultLogin,
+            executable: "/usr/local/bin/claude",
+            base: ["CLAUDE_CONFIG_DIR": "/x", "PATH": "/usr/bin"]
+        )
         XCTAssertNil(env["CLAUDE_CONFIG_DIR"])
-        XCTAssertEqual(env["PATH"], "/usr/bin")
+        XCTAssertEqual(env["PATH"], "/usr/local/bin:/opt/homebrew/bin:/usr/bin")
     }
 
     func testConfigDirLoginSetsVariable() {
         let login = AutoStartLogin.configDir(path: "/Users/x/.claude-work", keychainService: "Claude Code-credentials-1a2b3c4d")
-        let env = ClaudeCLIPing.environment(for: login, base: ["CLAUDE_CONFIG_DIR": "/x", "HOME": "/Users/x"])
+        let env = ClaudeCLIPing.environment(
+            for: login,
+            executable: "/Users/x/.local/bin/claude",
+            base: ["CLAUDE_CONFIG_DIR": "/x", "HOME": "/Users/x"]
+        )
         XCTAssertEqual(env["CLAUDE_CONFIG_DIR"], "/Users/x/.claude-work")
         XCTAssertEqual(env["HOME"], "/Users/x")
+    }
+
+    func testPathStartsWithExecutableDirectoryAndKeepsInheritedPath() {
+        let env = ClaudeCLIPing.environment(
+            for: .defaultLogin,
+            executable: "/Users/x/.npm-global/bin/claude",
+            base: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"]
+        )
+        let path = env["PATH"]?.split(separator: ":").map(String.init) ?? []
+        XCTAssertEqual(path.first, "/Users/x/.npm-global/bin")
+        XCTAssertEqual(Array(path.prefix(3)), ["/Users/x/.npm-global/bin", "/opt/homebrew/bin", "/usr/local/bin"])
+        XCTAssertTrue(path.contains("/usr/bin"))
+        XCTAssertEqual(path.count, Set(path).count, "PATH entries are deduplicated")
+    }
+
+    func testPathWithoutInheritedPath() {
+        let env = ClaudeCLIPing.environment(for: .defaultLogin, executable: "/opt/homebrew/bin/claude", base: [:])
+        XCTAssertEqual(env["PATH"], "/opt/homebrew/bin:/usr/local/bin")
     }
 
     // MARK: - Result parsing

@@ -54,4 +54,21 @@ final class PinnedKeychainOAuthAccountTests: XCTestCase {
 
         XCTAssertNil(account)
     }
+
+    func testDefaultLoginAccountReadsHomeClaudeJSON() throws {
+        let json = #"{"oauthAccount":{"accountUuid":"uuid-default","emailAddress":"default@example.com"}}"#
+        try json.write(to: home.appendingPathComponent(".claude.json"), atomically: true, encoding: .utf8)
+        // A config dir elsewhere must not be read for the default login.
+        _ = try makeConfigDir(".claude-work", email: "work@example.com")
+
+        let account = service.readDefaultLoginOAuthAccount(homePath: home.path)
+
+        XCTAssertEqual(service.accountIdentity(fromOAuthAccountJSON: account), "uuid-default")
+    }
+
+    func testDefaultLoginAccountIsNilWithoutHomeClaudeJSON() throws {
+        _ = try makeConfigDir(".claude", email: "nested@example.com")
+
+        XCTAssertNil(service.readDefaultLoginOAuthAccount(homePath: home.path))
+    }
 }

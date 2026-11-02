@@ -7,6 +7,7 @@
 
 import Foundation
 import Cocoa
+import Combine
 
 /// Background service that opens a Claude 5-hour session window for each
 /// profile with auto-start enabled, within the profile's weekday or weekend
@@ -36,6 +37,8 @@ final class AutoStartSessionService {
     // Observers for sleep/wake notifications
     private var wakeObserver: NSObjectProtocol?
     private var sleepObserver: NSObjectProtocol?
+    // Re-arms the one-shot timer when a profile's auto-start toggle or schedule changes
+    private var profileChangeObserver: AnyCancellable?
 
     private let profileManager: ProfileManager
     private let notificationManager: NotificationManager
@@ -51,6 +54,7 @@ final class AutoStartSessionService {
     private let injectedLoginResolver: ((Profile) -> Result<AutoStartLogin, AutoStartSkipReason>)?
     private let injectedUsageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)?
     private let injectedProfiles: (() -> [Profile])?
+    private let injectedProfileChanges: AnyPublisher<[Profile], Never>?
 
     /// True between `start()` and `stop()`. Checks and the one-shot timer do nothing otherwise.
     private(set) var isRunning = false
@@ -76,7 +80,8 @@ final class AutoStartSessionService {
         defaults: UserDefaults = .standard,
         loginResolver: ((Profile) -> Result<AutoStartLogin, AutoStartSkipReason>)? = nil,
         usageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)? = nil,
-        profiles: (() -> [Profile])? = nil
+        profiles: (() -> [Profile])? = nil,
+        profileChanges: AnyPublisher<[Profile], Never>? = nil
     ) {
         self.profileManager = ProfileManager.shared
         self.notificationManager = NotificationManager.shared
@@ -89,6 +94,7 @@ final class AutoStartSessionService {
         self.injectedLoginResolver = loginResolver
         self.injectedUsageReader = usageReader
         self.injectedProfiles = profiles
+        self.injectedProfileChanges = profileChanges
     }
 
     // MARK: - Lifecycle
@@ -134,6 +140,18 @@ final class AutoStartSessionService {
             LoggingService.shared.logDebug("Mac going to sleep")
         }
 
+        // Only the fields that move the one-shot date; usage saves also publish
+        // `profiles` and are ignored. Delivered on the next main-queue turn because
+        // `@Published` emits before the new value is stored.
+        profileChangeObserver = (injectedProfileChanges ?? profileManager.$profiles.eraseToAnyPublisher())
+            .map { $0.map(ScheduleInputs.init) }
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.armOneShotTimer()
+            }
+
         LoggingService.shared.logInfo("AutoStartSessionService started (5-minute cycle, schedule timer, wake detection)")
 
         // Perform immediate initial check to populate state
@@ -148,6 +166,7 @@ final class AutoStartSessionService {
         checkTimer = nil
         oneShotTimer?.invalidate()
         oneShotTimer = nil
+        profileChangeObserver = nil
 
         // Remove observers
         if let wakeObserver = wakeObserver {
@@ -272,13 +291,6 @@ final class AutoStartSessionService {
         }
     }
 
-    /// No 5-hour block and no weekly limit: nothing to auto-start. A null
-    /// five_hour block alone is not enough, since idle Max and Pro accounts
-    /// report it too.
-    static func shouldSkipAutoStart(_ usage: ClaudeUsage) -> Bool {
-        usage.hasNoUsageWindows
-    }
-
     // MARK: - Ping
 
     private func ping(_ profile: Profile, login: AutoStartLogin) async {
@@ -301,7 +313,11 @@ final class AutoStartSessionService {
         let output = await runner.run(
             executable: executable,
             arguments: ClaudeCLIPing.arguments,
-            environment: ClaudeCLIPing.environment(for: login, base: ProcessInfo.processInfo.environment),
+            environment: ClaudeCLIPing.environment(
+                for: login,
+                executable: executable,
+                base: ProcessInfo.processInfo.environment
+            ),
             workingDirectory: Self.pingWorkingDirectory(),
             timeout: Self.pingTimeout
         )
@@ -388,7 +404,9 @@ final class AutoStartSessionService {
         let result = ClaudeCLIPing.resolveLogin(
             customKeychainService: profile.customKeychainServiceName,
             profileAccountJSON: profile.oauthAccountJSON,
-            defaultAccountJSON: linked ? nil : sync.readOAuthAccount(),
+            // The ping removes CLAUDE_CONFIG_DIR, so compare against ~/.claude.json
+            // even when the app itself was launched with that variable set.
+            defaultAccountJSON: linked ? nil : sync.readDefaultLoginOAuthAccount(),
             hasCliCredentials: defaultCredentials != nil,
             configDirPath: { sync.configDirPath(forKeychainService: $0) }
         )
@@ -680,6 +698,19 @@ final class AutoStartSessionService {
             openWindowResets: resets,
             calendar: calendar
         )
+    }
+
+    /// The profile fields that decide when the one-shot timer fires.
+    private struct ScheduleInputs: Equatable {
+        let id: UUID
+        let enabled: Bool
+        let schedule: AutoStartSchedule
+
+        init(_ profile: Profile) {
+            id = profile.id
+            enabled = profile.autoStartSessionEnabled
+            schedule = profile.effectiveAutoStartSchedule
+        }
     }
 
     /// Whether a one-shot check is scheduled. For tests.

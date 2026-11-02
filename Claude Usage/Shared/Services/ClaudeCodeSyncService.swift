@@ -535,6 +535,15 @@ class ClaudeCodeSyncService {
         return readOAuthAccount(from: url)
     }
 
+    /// The `oauthAccount` of the default login: `~/.claude.json` under `homePath`.
+    /// Unlike `readOAuthAccount()`, this ignores the app's own `CLAUDE_CONFIG_DIR`,
+    /// for callers that run `claude` with that variable removed.
+    func readDefaultLoginOAuthAccount(
+        homePath: String = FileManager.default.homeDirectoryForCurrentUser.path
+    ) -> String? {
+        readOAuthAccount(from: URL(fileURLWithPath: homePath).appendingPathComponent(".claude.json"))
+    }
+
     /// The keychain entry of a profile pinned to a non-default Claude Code config dir.
     /// Nil when the profile is unpinned or pinned to the default `Claude Code-credentials`
     /// entry: that entry is the one profile switching writes, so such a profile keeps the

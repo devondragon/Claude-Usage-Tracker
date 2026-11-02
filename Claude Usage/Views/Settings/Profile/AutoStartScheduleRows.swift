@@ -42,10 +42,10 @@ struct AutoStartScheduleRows: View {
                 .font(DesignTokens.Typography.body)
                 .frame(width: 80, alignment: .leading)
 
-            picker(label: "general.autostart_start".localized, keyPath: keyPath, isStop: false)
+            picker(label: "\(title) \("general.autostart_start".localized)", keyPath: keyPath, isStop: false)
             Text("-")
                 .foregroundColor(.secondary)
-            picker(label: "general.autostart_stop".localized, keyPath: keyPath, isStop: true)
+            picker(label: "\(title) \("general.autostart_stop".localized)", keyPath: keyPath, isStop: true)
 
             Spacer()
         }
@@ -91,6 +91,8 @@ struct AutoStartScheduleRows: View {
         Text(resultText)
             .font(DesignTokens.Typography.caption)
             .foregroundColor(lastResult?.success == false ? .red : .secondary)
+            .lineLimit(2)
+            .truncationMode(.tail)
     }
 
     private var resultText: String {
@@ -99,11 +101,18 @@ struct AutoStartScheduleRows: View {
         if result.success {
             return String(format: "general.autostart_last_success".localized, when)
         }
-        return String(
-            format: "general.autostart_last_failure".localized,
-            when,
-            result.message ?? ""
-        )
+        return Self.failureText(format: "general.autostart_last_failure".localized, when: when, message: result.message)
+    }
+
+    /// Fills the "last attempt failed %@: %@" format. Without a message the
+    /// format's trailing separator is dropped (ASCII or full-width colon), so the
+    /// line never ends in ": ".
+    static func failureText(format: String, when: String, message: String?) -> String {
+        guard let message, !message.isEmpty else {
+            let formatted = String(format: format, when, "")
+            return formatted.trimmingCharacters(in: CharacterSet(charactersIn: " :\u{FF1A}"))
+        }
+        return String(format: format, when, message)
     }
 
     private func reloadResult() {

@@ -101,9 +101,16 @@ nonisolated enum ClaudeCLIPing {
 
     static let configDirVariable = "CLAUDE_CONFIG_DIR"
 
+    /// Directories put at the front of the child's PATH, after the executable's
+    /// own directory. A GUI app inherits only `/usr/bin:/bin:/usr/sbin:/sbin`, so a
+    /// script install of `claude` (`#!/usr/bin/env node`) would not find `node`.
+    static let preferredPathDirectories = ["/opt/homebrew/bin", "/usr/local/bin"]
+
     /// `base` with `CLAUDE_CONFIG_DIR` set for a config-dir login and removed for
     /// the default login, so an inherited value never picks the wrong account.
-    static func environment(for login: AutoStartLogin, base: [String: String]) -> [String: String] {
+    /// PATH starts with the executable's directory and `preferredPathDirectories`,
+    /// followed by the rest of the inherited PATH, without duplicates.
+    static func environment(for login: AutoStartLogin, executable: String, base: [String: String]) -> [String: String] {
         var env = base
         switch login {
         case .defaultLogin:
@@ -111,6 +118,12 @@ nonisolated enum ClaudeCLIPing {
         case .configDir(let path, _):
             env[configDirVariable] = path
         }
+        let executableDirectory = (executable as NSString).deletingLastPathComponent
+        let inherited = (base["PATH"] ?? "").split(separator: ":").map(String.init)
+        var seen = Set<String>()
+        let path = ([executableDirectory] + preferredPathDirectories + inherited)
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+        env["PATH"] = path.joined(separator: ":")
         return env
     }
 
