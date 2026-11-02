@@ -31,12 +31,14 @@ Done and merged into this fork's `main` (fork PRs #1 to #7 and #9):
 - Linking profiles to logged-in Claude Code config dirs (#7). Design: `2026-11-01-claude-code-accounts.md`. Pinned profiles are read-only.
 - #334 empty auto-start chats (#9). The temporary conversation is deleted on failure too, chat requests send browser headers, and attempts are limited per profile (3 attempts 5 and 10 minutes apart, then a 5 hour pause, stored in UserDefaults). Chosen over upstream PR #349; its weekly-limit gate moves into the controls design. Not tested against a live claude.ai account.
 
+In review: monthly spend display for spend-limited accounts (Enterprise seats), branch `feat/monthly-spend`. Design `2026-11-02-monthly-spend-design.md`, plan `2026-11-02-monthly-spend-plan.md`. #356 (Ultra, no 5-hour limit) is still open: a Max account with no session running also returns `five_hour: null`, so a single response cannot tell the two apart.
+
 Next: write the design for the four auto-start controls (active hours/schedule, respect the weekly limit, start through the Claude Code CLI, configurable model and message) before coding.
 
 Open loose ends:
 
 - CI runs on the fork now (first runs on PR #9, 2026-11-02).
-- Hosted tests launch the real app with real settings, including auto-start. Upstream PR #349 has a one-line `XCTestCase` guard in `AppDelegate` that would stop this.
+- Hosted tests launched the real app with real settings (menu bar items, refresh timers, API calls). Fixed on `feat/monthly-spend` with an XCTest guard in `AppDelegate`.
 - Not exercised by hand yet: switching between profiles (#5), and linking, unlinking and switching linked profiles (#7).
 - Devon's Tribe and Lumena profiles have no credentials in the fork. Link them in Settings > CLI Account > Claude Code accounts.
 - History files (12 to 27 MB) are pruned the first time a snapshot is recorded, not at launch. Backups were taken on 2026-11-01 in that session's scratchpad.
