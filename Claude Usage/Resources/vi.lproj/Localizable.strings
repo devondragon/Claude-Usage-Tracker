@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Thiết kế";
 "menubar.extra_usage" = "Mức dùng thêm";
+"menubar.monthly_spend" = "Chi tiêu hàng tháng";
+"menubar.spend_of_limit" = "%@ / %@";
 "menubar.api_credits" = "Tín dụng API";
 "menubar.api_cost" = "Chi phí API";
 "menubar.this_month" = "Tháng này";
@@ -229,6 +231,14 @@
 "notification.session_warning.message" = "Bạn đã dùng %@ giới hạn phiên 5 giờ của mình. %@";
 "notification.session_critical.title" = "Mức dùng phiên nghiêm trọng";
 "notification.session_critical.message" = "Bạn đã dùng %@ giới hạn phiên 5 giờ của mình! %@";
+"notification.spend_info.title" = "Chi tiêu hàng tháng";
+"notification.spend_info.message" = "Bạn đã dùng %@ hạn mức chi tiêu hàng tháng. %@";
+"notification.spend_warning.title" = "Chi tiêu hàng tháng cao";
+"notification.spend_warning.message" = "Bạn đã dùng %@ hạn mức chi tiêu hàng tháng. %@";
+"notification.spend_critical.title" = "Sắp hết hạn mức chi tiêu hàng tháng";
+"notification.spend_critical.message" = "Bạn đã dùng %@ hạn mức chi tiêu hàng tháng. %@";
+"notification.spend_limit_reached.title" = "Đã đạt hạn mức chi tiêu hàng tháng";
+"notification.spend_limit_reached.message" = "Bạn đã đạt hạn mức chi tiêu hàng tháng. %@";
 "notification.session_reset.title" = "Đặt lại phiên";
 "notification.session_reset.message" = "Phiên của bạn đã được đặt lại! Bạn hiện có một phiên 5 giờ mới sẵn sàng sử dụng.";
 "notification.session_auto_started.title" = "Đã tự động bắt đầu phiên";

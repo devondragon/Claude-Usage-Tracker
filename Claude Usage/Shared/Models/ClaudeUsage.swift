@@ -56,6 +56,54 @@ struct ClaudeUsage: Codable, Equatable {
     var lastUpdated: Date
     var userTimezone: TimeZone
 
+    // Whether the usage response carried a 5-hour block / any weekly limit.
+    // A null five_hour block also means "no session running" on Max and Pro,
+    // so these flags alone must not hide UI; only `isSpendLimited` (no window,
+    // no plan limits, and a monthly spend cap: Enterprise seats) changes the
+    // display. Declared after `userTimezone` with defaults so the memberwise
+    // initializer keeps working at existing call sites.
+    var hasSessionWindow: Bool = true
+    var hasWeeklyWindow: Bool = true
+    var spendLimitReached: Bool = false
+    /// When the spend fields were last read from an API response. A cached
+    /// spend from an earlier month must not be reused.
+    var spendUpdatedAt: Date? = nil
+
+    /// The response had no 5-hour block and no weekly limit at all. True for
+    /// Enterprise seats even before their spend is loaded; false for idle Max
+    /// and Pro accounts, which still report a weekly limit. Used where a wrong
+    /// guess costs most (auto-switch, auto-start, history).
+    var hasNoUsageWindows: Bool {
+        !hasSessionWindow && !hasWeeklyWindow
+    }
+
+    /// Applies the profile's "Check Extra Usage Limit" setting. Accounts with
+    /// usage windows drop the cost fields when it is off; a spend-only account
+    /// keeps them, since the spend cap is its only limit.
+    func respectingOverageOptOut(enabled: Bool) -> ClaudeUsage {
+        guard !enabled, !hasNoUsageWindows else { return self }
+        var usage = self
+        usage.costUsed = nil
+        usage.costLimit = nil
+        usage.costCurrency = nil
+        usage.overageBalance = nil
+        usage.overageBalanceCurrency = nil
+        usage.spendLimitReached = false
+        usage.spendUpdatedAt = nil
+        return usage
+    }
+
+    /// The account's only limit is a monthly spend cap (costUsed / costLimit, in cents).
+    var isSpendLimited: Bool {
+        !hasSessionWindow && !hasWeeklyWindow && costUsed != nil && (costLimit ?? 0) > 0
+    }
+
+    /// Share of the monthly spend cap used, in percent. Not clamped: spend can exceed the cap.
+    var spendPercentage: Double {
+        guard let used = costUsed, let limit = costLimit, limit > 0 else { return 0 }
+        return used / limit * 100
+    }
+
     /// Remaining percentage (100 - used percentage)
     var remainingPercentage: Double {
         max(0, 100 - effectiveSessionPercentage)
@@ -143,6 +191,7 @@ extension ClaudeUsage {
         case overageBalance, overageBalanceCurrency
         case planType, creditsBalance, creditsUnlimited
         case lastUpdated, userTimezone
+        case hasSessionWindow, hasWeeklyWindow, spendLimitReached, spendUpdatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -176,7 +225,11 @@ extension ClaudeUsage {
             creditsBalance: try c.decodeIfPresent(Double.self, forKey: .creditsBalance),
             creditsUnlimited: try c.decodeIfPresent(Bool.self, forKey: .creditsUnlimited),
             lastUpdated: try c.decodeIfPresent(Date.self, forKey: .lastUpdated) ?? Date(),
-            userTimezone: try c.decodeIfPresent(TimeZone.self, forKey: .userTimezone) ?? .current
+            userTimezone: try c.decodeIfPresent(TimeZone.self, forKey: .userTimezone) ?? .current,
+            hasSessionWindow: try c.decodeIfPresent(Bool.self, forKey: .hasSessionWindow) ?? true,
+            hasWeeklyWindow: try c.decodeIfPresent(Bool.self, forKey: .hasWeeklyWindow) ?? true,
+            spendLimitReached: try c.decodeIfPresent(Bool.self, forKey: .spendLimitReached) ?? false,
+            spendUpdatedAt: try c.decodeIfPresent(Date.self, forKey: .spendUpdatedAt)
         )
     }
 }

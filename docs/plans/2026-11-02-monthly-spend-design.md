@@ -89,7 +89,9 @@ Amounts are minor units (cents for USD, `decimal_places` / `exponent` gives the 
 
 ## First step: confirm the claude.ai response
 
-Only the OAuth response has been seen. Before building on decision 2, fetch `/organizations/{org}/usage` with the Tribe claude.ai session key and check that it carries `extra_usage` with the same shape. If it does not, the cookie path gets spend another way: either from the profile's Claude Code token via the OAuth endpoint (read-only, under the rules in `2026-11-01-claude-code-accounts.md`), or from whichever claude.ai endpoint Settings > Usage uses. Record which in this doc.
+Result (2026-11-02): with the claude.ai login first in the auth order, a branch build stored Tribe's usage with no 5-hour block, no weekly block, and no spend, so the claude.ai response carries no `extra_usage`. Spend is read through the profile's Claude Code login instead (read-only). A Max account with no session running also returns `five_hour: null`, so a null block cannot mean "no 5-hour limit": decision 3's Ultra handling and the "No usage limits reported" state were dropped, and only a spend-limited account (no 5-hour or weekly block, empty `limits`, enabled cap) changes the display or skips auto-start.
+
+Originally: only the OAuth response has been seen. Before building on decision 2, fetch `/organizations/{org}/usage` with the Tribe claude.ai session key and check that it carries `extra_usage` with the same shape. If it does not, the cookie path gets spend another way: either from the profile's Claude Code token via the OAuth endpoint (read-only, under the rules in `2026-11-01-claude-code-accounts.md`), or from whichever claude.ai endpoint Settings > Usage uses. Record which in this doc.
 
 ## Related doc
 

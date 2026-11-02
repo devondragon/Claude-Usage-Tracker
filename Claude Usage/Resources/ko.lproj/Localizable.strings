@@ -73,6 +73,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "디자인";
 "menubar.extra_usage" = "추가 사용량";
+"menubar.monthly_spend" = "월간 지출";
+"menubar.spend_of_limit" = "%@ / %@";
 "menubar.api_credits" = "API 크레딧";
 "menubar.5_hour_window" = "5시간 롤링 윈도우";
 "menubar.all_models" = "모든 모델";
@@ -564,6 +566,14 @@
 "notification.session_warning.message" = "5시간 세션 한도의 %@를 사용했습니다. %@";
 "notification.session_critical.title" = "세션 사용량 위험";
 "notification.session_critical.message" = "5시간 세션 한도의 %@를 사용했습니다! %@";
+"notification.spend_info.title" = "월간 지출";
+"notification.spend_info.message" = "월간 지출 한도의 %@를 사용했습니다. %@";
+"notification.spend_warning.title" = "월간 지출이 많습니다";
+"notification.spend_warning.message" = "월간 지출 한도의 %@를 사용했습니다. %@";
+"notification.spend_critical.title" = "월간 지출 한도에 거의 도달";
+"notification.spend_critical.message" = "월간 지출 한도의 %@를 사용했습니다. %@";
+"notification.spend_limit_reached.title" = "월간 지출 한도 도달";
+"notification.spend_limit_reached.message" = "월간 지출 한도에 도달했습니다. %@";
 "notification.session_reset.title" = "세션 리셋됨";
 "notification.session_reset.message" = "세션이 리셋되었습니다! 이제 새로운 5시간 세션을 사용할 수 있습니다.";
 "notification.weekly_warning.title" = "주간 사용량 경고";

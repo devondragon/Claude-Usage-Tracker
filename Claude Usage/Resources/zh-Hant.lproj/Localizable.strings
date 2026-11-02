@@ -65,6 +65,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "設計";
 "menubar.extra_usage" = "額外使用量";
+"menubar.monthly_spend" = "每月支出";
+"menubar.spend_of_limit" = "%@ / %@";
 "menubar.api_credits" = "API 額度";
 "menubar.5_hour_window" = "5 小時滑動視窗";
 "menubar.all_models" = "所有模型";
@@ -230,6 +232,14 @@
 "notification.session_warning.message" = "您已使用 5 小時 Session 限制的 %@。%@";
 "notification.session_critical.title" = "Session 使用量嚴重";
 "notification.session_critical.message" = "您已使用 5 小時 Session 限制的 %@！%@";
+"notification.spend_info.title" = "每月支出";
+"notification.spend_info.message" = "您已使用每月支出上限的 %@。%@";
+"notification.spend_warning.title" = "每月支出偏高";
+"notification.spend_warning.message" = "您已使用每月支出上限的 %@。%@";
+"notification.spend_critical.title" = "每月支出上限即將用完";
+"notification.spend_critical.message" = "您已使用每月支出上限的 %@。%@";
+"notification.spend_limit_reached.title" = "已達到每月支出上限";
+"notification.spend_limit_reached.message" = "您已達到每月支出上限。%@";
 "notification.session_reset.title" = "Session 重置";
 "notification.session_reset.message" = "您的 Session 已重置！您現在有一個全新的 5 小時 Session 可用。";
 "notification.session_auto_started.title" = "Session 自動啟動";

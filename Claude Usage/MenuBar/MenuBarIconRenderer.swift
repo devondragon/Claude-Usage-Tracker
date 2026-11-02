@@ -73,11 +73,124 @@ final class MenuBarIconRenderer {
             )
         }
 
+        return render(
+            metricType: metricType,
+            labels: MetricLabels(metricType),
+            config: config,
+            metricData: metricData,
+            usage: usage,
+            timeMarkerFraction: timeMarkerFraction,
+            paceStatus: paceStatus,
+            showPaceMarker: showPaceMarker,
+            isDarkMode: isDarkMode,
+            colorMode: colorMode,
+            singleColorHex: singleColorHex,
+            showIconName: showIconName,
+            showNextSessionTime: showNextSessionTime
+        )
+    }
+
+    /// Creates the monthly spend bar for a spend-limited profile, drawn in the
+    /// style of `config` like a session bar, labeled "$".
+    func createSpendImage(
+        config: MetricIconConfig,
+        globalConfig: MenuBarIconConfiguration,
+        usage: ClaudeUsage,
+        isDarkMode: Bool,
+        colorMode: MenuBarColorMode,
+        singleColorHex: String,
+        showIconName: Bool,
+        now: Date = Date()
+    ) -> NSImage {
+        let showRemaining = globalConfig.showRemainingPercentage
+        // Spend can exceed the cap; the bar draws full at most.
+        let used = min(usage.spendPercentage, 100)
+        let elapsed = SpendPeriod.containing(now).elapsedFraction(at: now)
+        let displayPercentage = UsageStatusCalculator.getDisplayPercentage(
+            usedPercentage: used,
+            showRemaining: showRemaining
+        )
+        let statusLevel = UsageStatusCalculator.calculateStatus(
+            usedPercentage: used,
+            showRemaining: showRemaining,
+            elapsedFraction: globalConfig.usePaceColoring ? elapsed : nil
+        )
+        let metricData = MetricData(
+            percentage: displayPercentage,
+            displayText: "\(Int(displayPercentage))%",
+            statusLevel: statusLevel,
+            sessionResetTime: nil
+        )
+        let timeMarkerFraction: CGFloat? = globalConfig.showTimeMarker
+            ? CGFloat(showRemaining ? 1.0 - elapsed : elapsed)
+            : nil
+        let paceStatus: PaceStatus? = globalConfig.showPaceMarker
+            ? PaceStatus.calculate(usedPercentage: used, elapsedFraction: elapsed)
+            : nil
+
+        return render(
+            metricType: .session,
+            labels: .spend,
+            config: config,
+            metricData: metricData,
+            usage: usage,
+            timeMarkerFraction: timeMarkerFraction,
+            paceStatus: paceStatus,
+            showPaceMarker: globalConfig.showPaceMarker,
+            isDarkMode: isDarkMode,
+            colorMode: colorMode,
+            singleColorHex: singleColorHex,
+            showIconName: showIconName,
+            showNextSessionTime: false
+        )
+    }
+
+    // MARK: - Labels
+
+    private struct MetricLabels {
+        let full: String
+        let short: String
+        let prefix: String
+
+        static let spend = MetricLabels(full: "Spend", short: "$", prefix: "$:")
+
+        init(full: String, short: String, prefix: String) {
+            self.full = full
+            self.short = short
+            self.prefix = prefix
+        }
+
+        init(_ metricType: MenuBarMetricType) {
+            self.init(
+                full: metricType == .session ? "Session" : "Week",
+                short: metricType == .session ? "S" : "W",
+                prefix: metricType.prefixText
+            )
+        }
+    }
+
+
+    private func render(
+        metricType: MenuBarMetricType,
+        labels: MetricLabels,
+        config: MetricIconConfig,
+        metricData: MetricData,
+        usage: ClaudeUsage,
+        timeMarkerFraction: CGFloat?,
+        paceStatus: PaceStatus?,
+        showPaceMarker: Bool,
+        isDarkMode: Bool,
+        colorMode: MenuBarColorMode,
+        singleColorHex: String,
+        showIconName: Bool,
+        showNextSessionTime: Bool
+    ) -> NSImage {
         // Render based on icon style for Session and Week
         switch config.iconStyle {
         case .battery:
             return createBatteryStyle(
                 metricType: metricType,
+                labels: labels,
                 metricData: metricData,
                 isDarkMode: isDarkMode,
                 colorMode: colorMode,
@@ -92,6 +205,7 @@ final class MenuBarIconRenderer {
         case .progressBar:
             return createProgressBarStyle(
                 metricType: metricType,
+                labels: labels,
                 metricData: metricData,
                 isDarkMode: isDarkMode,
                 colorMode: colorMode,
@@ -106,6 +220,7 @@ final class MenuBarIconRenderer {
         case .percentageOnly:
             return createPercentageOnlyStyle(
                 metricType: metricType,
+                labels: labels,
                 metricData: metricData,
                 isDarkMode: isDarkMode,
                 colorMode: colorMode,
@@ -117,6 +232,7 @@ final class MenuBarIconRenderer {
         case .icon:
             return createIconWithBarStyle(
                 metricType: metricType,
+                labels: labels,
                 metricData: metricData,
                 isDarkMode: isDarkMode,
                 colorMode: colorMode,
@@ -129,6 +245,7 @@ final class MenuBarIconRenderer {
         case .compact:
             return createCompactStyle(
                 metricType: metricType,
+                labels: labels,
                 metricData: metricData,
                 isDarkMode: isDarkMode,
                 colorMode: colorMode,
@@ -265,6 +382,7 @@ final class MenuBarIconRenderer {
 
     private func createBatteryStyle(
         metricType: MenuBarMetricType,
+        labels: MetricLabels,
         metricData: MetricData,
         isDarkMode: Bool,
         colorMode: MenuBarColorMode,
@@ -356,7 +474,7 @@ final class MenuBarIconRenderer {
             }
         } else if showIconName {
             // Show full word: "Session" or "Week"
-            text = (metricType == .session ? "Session" : "Week") as NSString
+            text = labels.full as NSString
         } else {
             // No label mode - show percentage instead
             text = "\(Int(metricData.percentage))%" as NSString
@@ -372,6 +490,7 @@ final class MenuBarIconRenderer {
 
     private func createProgressBarStyle(
         metricType: MenuBarMetricType,
+        labels: MetricLabels,
         metricData: MetricData,
         isDarkMode: Bool,
         colorMode: MenuBarColorMode,
@@ -409,7 +528,7 @@ final class MenuBarIconRenderer {
                 .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
                 .foregroundColor: textColor.withAlphaComponent(0.9)
             ]
-            let label = (metricType == .session ? "S" : "W") as NSString
+            let label = labels.short as NSString
             let labelSize = label.size(withAttributes: labelAttributes)
             label.draw(
                 at: NSPoint(x: xOffset, y: (height - labelSize.height) / 2),
@@ -476,6 +595,7 @@ final class MenuBarIconRenderer {
 
     private func createPercentageOnlyStyle(
         metricType: MenuBarMetricType,
+        labels: MetricLabels,
         metricData: MetricData,
         isDarkMode: Bool,
         colorMode: MenuBarColorMode,
@@ -490,7 +610,7 @@ final class MenuBarIconRenderer {
         var fullText = ""
 
         if showIconName {
-            fullText = "\(metricType.prefixText) \(metricData.displayText)"
+            fullText = "\(labels.prefix) \(metricData.displayText)"
         } else {
             fullText = metricData.displayText
         }
@@ -526,6 +646,7 @@ final class MenuBarIconRenderer {
 
     private func createIconWithBarStyle(
         metricType: MenuBarMetricType,
+        labels: MetricLabels,
         metricData: MetricData,
         isDarkMode: Bool,
         colorMode: MenuBarColorMode,
@@ -613,7 +734,7 @@ final class MenuBarIconRenderer {
                 .font: NSFont.systemFont(ofSize: 9, weight: .bold),
                 .foregroundColor: textColor
             ]
-            let label = (metricType == .session ? "S" : "W") as NSString
+            let label = labels.short as NSString
             let labelSize = label.size(withAttributes: labelAttributes)
             let labelX = center.x - labelSize.width / 2
             let labelY = center.y - labelSize.height / 2
@@ -625,6 +746,7 @@ final class MenuBarIconRenderer {
 
     private func createCompactStyle(
         metricType: MenuBarMetricType,
+        labels: MetricLabels,
         metricData: MetricData,
         isDarkMode: Bool,
         colorMode: MenuBarColorMode,
@@ -659,7 +781,7 @@ final class MenuBarIconRenderer {
                 .font: NSFont.systemFont(ofSize: 9, weight: .medium),
                 .foregroundColor: textColor.withAlphaComponent(0.85)
             ]
-            let prefixText = metricType.prefixText as NSString
+            let prefixText = labels.prefix as NSString
             let prefixSize = prefixText.size(withAttributes: prefixAttributes)
             prefixText.draw(
                 at: NSPoint(x: xOffset, y: (height - prefixSize.height) / 2),

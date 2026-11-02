@@ -462,14 +462,11 @@ class ClaudeAPIService: APIServiceProtocol {
         async let creditGrantTask: Data? = performRequest(endpoint: "/organizations/\(organizationId)/overage_credit_grant", sessionKey: sessionKey)
 
         let usageData = try await usageDataTask
-        var claudeUsage = try parseUsageResponse(usageData)
+        var claudeUsage = try Self.parseUsageResponse(usageData)
 
         if let data = try? await overageDataTask,
-           let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data),
-           overage.isEnabled == true {
-            claudeUsage.costUsed = overage.usedCredits
-            claudeUsage.costLimit = overage.monthlyCreditLimit
-            claudeUsage.costCurrency = overage.currency
+           let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data) {
+            claudeUsage = Self.applyingOverage(overage, to: claudeUsage)
         }
 
         if let creditData = try? await creditGrantTask,
@@ -506,7 +503,7 @@ class ClaudeAPIService: APIServiceProtocol {
             )
         }
 
-        return try parseUsageResponse(data)
+        return try Self.parseUsageResponse(data)
     }
 
     /// Fetches real usage data from Claude's API
@@ -526,15 +523,12 @@ class ClaudeAPIService: APIServiceProtocol {
             async let creditGrantTask: Data? = checkOverage ? performRequest(endpoint: "/organizations/\(orgId)/overage_credit_grant", sessionKey: sessionKey) : nil
 
             let usageData = try await usageDataTask
-            var claudeUsage = try parseUsageResponse(usageData)
+            var claudeUsage = try Self.parseUsageResponse(usageData)
 
             if checkOverage,
                let data = try? await overageDataTask,
-               let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data),
-               overage.isEnabled == true {
-                claudeUsage.costUsed = overage.usedCredits
-                claudeUsage.costLimit = overage.monthlyCreditLimit
-                claudeUsage.costCurrency = overage.currency
+               let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data) {
+                claudeUsage = Self.applyingOverage(overage, to: claudeUsage)
             }
 
             if checkOverage,
@@ -800,7 +794,7 @@ class ClaudeAPIService: APIServiceProtocol {
 
     // MARK: - Response Parsing
 
-    private func parseUsageResponse(_ data: Data) throws -> ClaudeUsage {
+    static func parseUsageResponse(_ data: Data) throws -> ClaudeUsage {
         // Parse Claude's actual API response structure
 
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -927,7 +921,7 @@ class ClaudeAPIService: APIServiceProtocol {
             let designTokens = Int(Double(weeklyLimit) * (designPercentage / 100.0))
             let fableTokens = Int(Double(weeklyLimit) * (fablePercentage / 100.0))
 
-            let usage = ClaudeUsage(
+            var usage = ClaudeUsage(
                 sessionTokensUsed: sessionTokens,
                 sessionLimit: sessionLimit,
                 sessionPercentage: sessionPercentage,
@@ -953,6 +947,22 @@ class ClaudeAPIService: APIServiceProtocol {
                 lastUpdated: Date(),
                 userTimezone: .current
             )
+
+            // A null five_hour block means no session window right now (idle,
+            // or no 5-hour limit at all). Weekly counts as present when the
+            // seven_day block or any `limits` entry exists. Enterprise seats
+            // capped by monthly spend have neither.
+            usage.hasSessionWindow = json["five_hour"] is [String: Any]
+            usage.hasWeeklyWindow = json["seven_day"] is [String: Any]
+                || ((json["limits"] as? [Any])?.isEmpty == false)
+
+            if let spend = Self.parseSpend(from: json) {
+                usage.costUsed = spend.usedCents
+                usage.costLimit = spend.limitCents
+                usage.costCurrency = spend.currency
+                usage.spendLimitReached = spend.limitReached
+                usage.spendUpdatedAt = Date()
+            }
 
             return usage
         }
@@ -1050,7 +1060,64 @@ class ClaudeAPIService: APIServiceProtocol {
     /// Robust utilization parser that handles Int, Double, or String types
     /// - Parameter value: The utilization value from API (can be Int, Double, or String)
     /// - Returns: Parsed percentage as Double, or 0.0 if parsing fails
-    private func parseUtilization(_ value: Any) -> Double {
+    /// Applies claude.ai's `overage_spend_limit` result. Only an enabled limit
+    /// above 0 replaces the cost fields: Enterprise seats report enabled with
+    /// no limit, which would otherwise erase spend read from the usage response.
+    static func applyingOverage(_ overage: OverageSpendLimitResponse, to usage: ClaudeUsage) -> ClaudeUsage {
+        guard overage.isEnabled == true, let limit = overage.monthlyCreditLimit, limit > 0 else { return usage }
+        var updated = usage
+        updated.costUsed = overage.usedCredits ?? 0
+        updated.costLimit = limit
+        updated.costCurrency = overage.currency
+        updated.spendUpdatedAt = Date()
+        return updated
+    }
+
+    /// Reads the monthly spend cap. Prefers an enabled `extra_usage`; otherwise uses `spend`.
+    /// Returns nil when spend tracking is disabled, missing, or has no limit.
+    static func parseSpend(from json: [String: Any]) -> ParsedSpend? {
+        func number(_ value: Any?) -> Double? {
+            if let n = value as? NSNumber { return n.doubleValue }
+            if let s = value as? String { return Double(s) }
+            return nil
+        }
+        // Minor units at `decimalPlaces` scale, converted to cents.
+        func cents(_ value: Double, decimalPlaces: Int) -> Double {
+            value * pow(10, Double(2 - decimalPlaces))
+        }
+
+        if let extra = json["extra_usage"] as? [String: Any],
+           extra["is_enabled"] as? Bool == true,
+           let limit = number(extra["monthly_limit"]), limit > 0,
+           let used = number(extra["used_credits"]) {
+            let places = (extra["decimal_places"] as? Int) ?? 2
+            return ParsedSpend(
+                usedCents: cents(used, decimalPlaces: places),
+                limitCents: cents(limit, decimalPlaces: places),
+                currency: (extra["currency"] as? String) ?? "USD",
+                limitReached: extra["spend_limit_reached"] as? Bool ?? false
+            )
+        }
+
+        if let spend = json["spend"] as? [String: Any] {
+            guard spend["enabled"] as? Bool == true,
+                  let usedBlock = spend["used"] as? [String: Any],
+                  let limitBlock = spend["limit"] as? [String: Any],
+                  let used = number(usedBlock["amount_minor"]),
+                  let limit = number(limitBlock["amount_minor"]), limit > 0 else { return nil }
+            let places = (usedBlock["exponent"] as? Int) ?? 2
+            return ParsedSpend(
+                usedCents: cents(used, decimalPlaces: places),
+                limitCents: cents(limit, decimalPlaces: (limitBlock["exponent"] as? Int) ?? places),
+                currency: (usedBlock["currency"] as? String) ?? "USD",
+                limitReached: false
+            )
+        }
+
+        return nil
+    }
+
+    private static func parseUtilization(_ value: Any) -> Double {
         // Try Int first (most common)
         if let intValue = value as? Int {
             return Double(intValue)

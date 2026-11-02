@@ -38,7 +38,9 @@ final class AnthropicUsageProvider: UsageProviderService {
         // Priority 1: claude.ai session key (cookie-based)
         if let sessionKey = profile.claudeSessionKey,
            let orgId = profile.organizationId {
-            return try await apiService.fetchUsageData(sessionKey: sessionKey, organizationId: orgId)
+            let usage = try await apiService.fetchUsageData(sessionKey: sessionKey, organizationId: orgId)
+            return await addingSpendFromClaudeCode(to: usage, for: profile)
+                .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
         }
 
         // Priority 2: CLI OAuth credentials.
@@ -57,6 +59,7 @@ final class AnthropicUsageProvider: UsageProviderService {
                !ClaudeCodeSyncService.shared.isTokenExpired(usableJSON),
                let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: usableJSON) {
                 return try await apiService.fetchUsageData(oauthAccessToken: accessToken)
+                    .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
             }
         }
 
@@ -72,6 +75,7 @@ final class AnthropicUsageProvider: UsageProviderService {
            !ClaudeCodeSyncService.shared.isTokenExpired(systemCredentials),
            let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: systemCredentials) {
             return try await apiService.fetchUsageData(oauthAccessToken: accessToken)
+                .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
         }
 
         // No usable live credential (e.g. a non-active profile whose CLI token expired and
@@ -103,6 +107,97 @@ final class AnthropicUsageProvider: UsageProviderService {
         if profile.customKeychainServiceName != nil, profile.claudeSessionKey == nil {
             return try await fetchUsage(for: profile)
         }
-        return try await apiService.fetchUsageData()
+        let usage = try await apiService.fetchUsageData()
+        return await addingSpendFromClaudeCode(to: usage, for: profile)
+            .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
+    }
+
+    // MARK: - Spend from the Claude Code login
+
+    // claude.ai's usage endpoint reports no `extra_usage` block for Enterprise
+    // seats, while the Claude Code OAuth endpoint does. When a claude.ai result
+    // shows no windows and no spend, read spend through the profile's Claude
+    // Code login instead.
+
+    /// The result has no 5-hour or weekly limit and no spend: spend may be missing.
+    static func needsSpendFromClaudeCode(_ usage: ClaudeUsage) -> Bool {
+        !usage.hasSessionWindow && !usage.hasWeeklyWindow && (usage.costLimit ?? 0) <= 0
+    }
+
+    /// Minimum time between spend fetches through the Claude Code login. The
+    /// OAuth usage endpoint rate-limits (HTTP 429) at the app's 30 s refresh.
+    static let spendFetchInterval: TimeInterval = 300
+
+    static func shouldFetchSpend(lastFetch: Date?, now: Date) -> Bool {
+        guard let lastFetch else { return true }
+        return now.timeIntervalSince(lastFetch) >= spendFetchInterval
+    }
+
+    /// The spend to show. A successful fetch wins, even without a cap (the cap
+    /// was removed). Otherwise the cached spend is used only if it was read in
+    /// the current spend period, so last month's spend never carries over.
+    static func resolveSpend(usage: ClaudeUsage, fetched: ClaudeUsage?, cached: ClaudeUsage?, now: Date) -> ClaudeUsage {
+        if let fetched {
+            return mergingSpend(from: fetched, into: usage)
+        }
+        if let cached, let limit = cached.costLimit, limit > 0,
+           let readAt = cached.spendUpdatedAt, readAt >= SpendPeriod.containing(now).start {
+            return mergingSpend(from: cached, into: usage)
+        }
+        return usage
+    }
+
+    /// When each profile's spend was last fetched (attempted) via Claude Code.
+    private var lastSpendFetch: [UUID: Date] = [:]
+
+    /// The last spend fetched per profile. Preferred over `profile.claudeUsage`
+    /// as the fallback: refreshes run on profile copies taken when they start,
+    /// so overlapping refreshes can hand in a copy older than the last fetch.
+    private var lastFetchedSpend: [UUID: ClaudeUsage] = [:]
+
+    /// `usage` with the spend fields of `source`; everything else unchanged.
+    static func mergingSpend(from source: ClaudeUsage, into usage: ClaudeUsage) -> ClaudeUsage {
+        var merged = usage
+        merged.costUsed = source.costUsed
+        merged.costLimit = source.costLimit
+        merged.costCurrency = source.costCurrency
+        merged.spendLimitReached = source.spendLimitReached
+        merged.spendUpdatedAt = source.spendUpdatedAt
+        return merged
+    }
+
+    /// Fetches spend with the profile's Claude Code token when the claude.ai
+    /// result lacks it, at most every `spendFetchInterval`. Read-only: the
+    /// token is never refreshed (another tool owns it). Between fetches, and
+    /// when a fetch fails, the last stored spend is kept.
+    private func addingSpendFromClaudeCode(to usage: ClaudeUsage, for profile: Profile) async -> ClaudeUsage {
+        guard Self.needsSpendFromClaudeCode(usage) else { return usage }
+
+        let now = Date()
+        let fallback = Self.resolveSpend(usage: usage, fetched: nil, cached: lastFetchedSpend[profile.id] ?? profile.claudeUsage, now: now)
+        guard Self.shouldFetchSpend(lastFetch: lastSpendFetch[profile.id], now: now) else { return fallback }
+        lastSpendFetch[profile.id] = now
+
+        // The cached copy first; read the pinned keychain entry (a `security`
+        // subprocess) only when the cached token is missing or expired.
+        let sync = ClaudeCodeSyncService.shared
+        var json = profile.cliCredentialsJSON.flatMap { sync.isTokenExpired($0) ? nil : $0 }
+        if json == nil, let service = profile.customKeychainServiceName,
+           let pinned = sync.readKeychainCredentials(serviceName: service),
+           !sync.isTokenExpired(pinned) {
+            json = pinned
+        }
+        guard let json, let token = sync.extractAccessToken(from: json) else {
+            return fallback
+        }
+
+        do {
+            let oauthUsage = try await apiService.fetchUsageData(oauthAccessToken: token)
+            lastFetchedSpend[profile.id] = oauthUsage
+            return Self.resolveSpend(usage: usage, fetched: oauthUsage, cached: nil, now: now)
+        } catch {
+            LoggingService.shared.log("AnthropicUsageProvider: spend via Claude Code login failed for '\(profile.name)': \(error.localizedDescription)")
+            return fallback
+        }
     }
 }

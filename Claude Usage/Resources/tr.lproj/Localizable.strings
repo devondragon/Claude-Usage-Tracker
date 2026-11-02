@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Tasarım";
 "menubar.extra_usage" = "Ek Kullanım";
+"menubar.monthly_spend" = "Aylık harcama";
+"menubar.spend_of_limit" = "%@ / %@";
 "menubar.api_credits" = "API Kredileri";
 "menubar.api_cost" = "API Maliyeti";
 "menubar.this_month" = "Bu Ay";
@@ -229,6 +231,14 @@
 "notification.session_warning.message" = "5 saatlik oturum limitinizin %@'ını kullandınız. %@";
 "notification.session_critical.title" = "Oturum Kullanımı Kritik";
 "notification.session_critical.message" = "5 saatlik oturum limitinizin %@'ını kullandınız! %@";
+"notification.spend_info.title" = "Aylık harcama";
+"notification.spend_info.message" = "Aylık harcama sınırınızın %@ kadarını kullandınız. %@";
+"notification.spend_warning.title" = "Aylık harcama yüksek";
+"notification.spend_warning.message" = "Aylık harcama sınırınızın %@ kadarını kullandınız. %@";
+"notification.spend_critical.title" = "Aylık harcama sınırı neredeyse doldu";
+"notification.spend_critical.message" = "Aylık harcama sınırınızın %@ kadarını kullandınız. %@";
+"notification.spend_limit_reached.title" = "Aylık harcama sınırına ulaşıldı";
+"notification.spend_limit_reached.message" = "Aylık harcama sınırınıza ulaştınız. %@";
 "notification.session_reset.title" = "Oturum Sıfırlandı";
 "notification.session_reset.message" = "Oturumunuz sıfırlandı! Artık yeni bir 5 saatlik oturumunuz mevcut.";
 "notification.session_auto_started.title" = "Oturum Otomatik Başlatıldı";

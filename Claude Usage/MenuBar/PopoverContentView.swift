@@ -224,7 +224,9 @@ struct PopoverContentView: View {
             SmartUsageDashboard(usage: displayUsage, apiUsage: displayAPIUsage, provider: displayProvider)
 
             // Contextual Insights
-            if showInsights {
+            // Insights are about session and weekly usage, which a
+            // spend-limited account does not have.
+            if showInsights && !displayUsage.isSpendLimited {
                 PopoverDivider()
                 ContextualInsights(usage: displayUsage)
                     .transition(.opacity)
@@ -640,19 +642,42 @@ struct SmartUsageDashboard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Primary: Session Usage
-            UsageRow(
-                title: "menubar.session_usage".localized,
-                subtitle: "menubar.5_hour_window".localized,
-                usedPercentage: usage.effectiveSessionPercentage,
-                showRemaining: showRemainingPercentage,
-                resetTime: usage.sessionResetTime,
-                periodDuration: Constants.sessionWindow,
-                showTimeMarker: showTimeMarker,
-                showPaceMarker: showPaceMarker,
-                usePaceColoring: usePaceColoring,
-                timeDisplay: timeDisplay
-            )
+            // Spend-limited accounts (monthly cap, no windows): one spend card.
+            if usage.isSpendLimited, let used = usage.costUsed, let limit = usage.costLimit {
+                let currency = usage.costCurrency ?? "USD"
+                let period = SpendPeriod.containing(Date())
+                UsageRow(
+                    title: "menubar.monthly_spend".localized,
+                    subtitle: "menubar.spend_of_limit".localized(
+                        with: SpendFormatting.string(cents: used, currency: currency),
+                        SpendFormatting.string(cents: limit, currency: currency)
+                    ),
+                    usedPercentage: usage.spendPercentage,
+                    showRemaining: showRemainingPercentage,
+                    resetTime: period.end,
+                    periodDuration: period.duration,
+                    showTimeMarker: showTimeMarker,
+                    showPaceMarker: showPaceMarker,
+                    usePaceColoring: usePaceColoring,
+                    timeDisplay: timeDisplay
+                )
+            }
+
+            // Primary: Session Usage (not shown for spend-limited accounts)
+            if !usage.isSpendLimited {
+                UsageRow(
+                    title: "menubar.session_usage".localized,
+                    subtitle: "menubar.5_hour_window".localized,
+                    usedPercentage: usage.effectiveSessionPercentage,
+                    showRemaining: showRemainingPercentage,
+                    resetTime: usage.sessionResetTime,
+                    periodDuration: Constants.sessionWindow,
+                    showTimeMarker: showTimeMarker,
+                    showPaceMarker: showPaceMarker,
+                    usePaceColoring: usePaceColoring,
+                    timeDisplay: timeDisplay
+                )
+            }
 
             if usage.designWeeklyTokensUsed > 0 {
                 UsageRow(
@@ -668,19 +693,21 @@ struct SmartUsageDashboard: View {
             }
 
             // All Models (Weekly)
-            UsageRow(
-                title: "menubar.all_models".localized,
-                tag: "menubar.weekly".localized,
-                subtitle: nil,
-                usedPercentage: usage.weeklyPercentage,
-                showRemaining: showRemainingPercentage,
-                resetTime: usage.weeklyResetTime,
-                periodDuration: Constants.weeklyWindow,
-                showTimeMarker: showTimeMarker,
-                showPaceMarker: showPaceMarker,
-                usePaceColoring: usePaceColoring,
-                timeDisplay: timeDisplay
-            )
+            if !usage.isSpendLimited {
+                UsageRow(
+                    title: "menubar.all_models".localized,
+                    tag: "menubar.weekly".localized,
+                    subtitle: nil,
+                    usedPercentage: usage.weeklyPercentage,
+                    showRemaining: showRemainingPercentage,
+                    resetTime: usage.weeklyResetTime,
+                    periodDuration: Constants.weeklyWindow,
+                    showTimeMarker: showTimeMarker,
+                    showPaceMarker: showPaceMarker,
+                    usePaceColoring: usePaceColoring,
+                    timeDisplay: timeDisplay
+                )
+            }
 
             if usage.fableWeeklyTokensUsed > 0 {
                 UsageRow(
@@ -719,8 +746,8 @@ struct SmartUsageDashboard: View {
                 )
             }
 
-            // Extra usage (cost-based)
-            if let used = usage.costUsed, let limit = usage.costLimit, let currency = usage.costCurrency, limit > 0 {
+            // Extra usage (cost-based); a spend-limited account shows it in the spend card instead
+            if !usage.isSpendLimited, let used = usage.costUsed, let limit = usage.costLimit, let currency = usage.costCurrency, limit > 0 {
                 let usedPercentage = (used / limit) * 100.0
                 UsageRow(
                     title: "menubar.extra_usage".localized,

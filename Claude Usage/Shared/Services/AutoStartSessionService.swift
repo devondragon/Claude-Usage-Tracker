@@ -154,7 +154,24 @@ final class AutoStartSessionService {
 
         do {
             // Fetch current usage for this profile
-            let (usage, hasOpenWindow) = try await fetchUsageForProfile(profile)
+            let (usage, hasOpenWindow) = try await fetchUsageData(for: profile)
+
+            // Accounts without usage windows (Enterprise seats) have no session
+            // to start; 0% and no open window would otherwise trigger an attempt
+            // on every check. Their usage is not saved either: claude.ai's
+            // response carries no spend, and saving it would drop the spend the
+            // main refresh stored.
+            guard !Self.shouldSkipAutoStart(usage) else {
+                attemptStore.clear(for: profile.id)
+                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account has no session or weekly window")
+                return
+            }
+
+            // Save usage to profile
+            profileManager.saveClaudeUsage(
+                usage.respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled),
+                for: profile.id
+            )
 
             let currentPercentage = usage.effectiveSessionPercentage
 
@@ -215,16 +232,11 @@ final class AutoStartSessionService {
         }
     }
 
-    private func fetchUsageForProfile(_ profile: Profile) async throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
-        // Fetch usage data using the profile's specific credentials
-        let (usage, hasOpenWindow) = try await fetchUsageData(for: profile)
-
-        // Save usage to profile
-        await MainActor.run {
-            profileManager.saveClaudeUsage(usage, for: profile.id)
-        }
-
-        return (usage, hasOpenWindow)
+    /// No 5-hour block and no weekly limit: nothing to auto-start. A null
+    /// five_hour block alone is not enough, since idle Max and Pro accounts
+    /// report it too.
+    static func shouldSkipAutoStart(_ usage: ClaudeUsage) -> Bool {
+        usage.hasNoUsageWindows
     }
 
     private func fetchUsageData(for profile: Profile) async throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
@@ -264,10 +276,10 @@ final class AutoStartSessionService {
         }
 
         // Parse usage response
-        return try parseUsageResponse(data)  // (usage, hasOpenWindow)
+        return try Self.parseUsageResponse(data)  // (usage, hasOpenWindow)
     }
 
-    private func parseUsageResponse(_ data: Data) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
+    static func parseUsageResponse(_ data: Data) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AppError(code: .apiParsingFailed, message: "Failed to parse usage data", isRecoverable: false)
         }
@@ -338,7 +350,7 @@ final class AutoStartSessionService {
         let opusTokens = Int(Double(weeklyLimit) * (opusPercentage / 100.0))
         let sonnetTokens = Int(Double(weeklyLimit) * (sonnetPercentage / 100.0))
 
-        let usage = ClaudeUsage(
+        var usage = ClaudeUsage(
             sessionTokensUsed: 0,
             sessionLimit: 0,
             sessionPercentage: sessionPercentage,
@@ -364,10 +376,23 @@ final class AutoStartSessionService {
             lastUpdated: Date(),
             userTimezone: .current
         )
+        // No five_hour block: the account has no session window to open.
+        // The window flags and spend are filled like the shared parser's,
+        // because this usage is saved to the profile.
+        usage.hasSessionWindow = json["five_hour"] is [String: Any]
+        usage.hasWeeklyWindow = json["seven_day"] is [String: Any]
+            || ((json["limits"] as? [Any])?.isEmpty == false)
+        if let spend = ClaudeAPIService.parseSpend(from: json) {
+            usage.costUsed = spend.usedCents
+            usage.costLimit = spend.limitCents
+            usage.costCurrency = spend.currency
+            usage.spendLimitReached = spend.limitReached
+            usage.spendUpdatedAt = Date()
+        }
         return (usage, hasOpenWindow)
     }
 
-    private func parseUtilization(_ value: Any) -> Double {
+    private static func parseUtilization(_ value: Any) -> Double {
         if let intValue = value as? Int {
             return Double(intValue)
         }

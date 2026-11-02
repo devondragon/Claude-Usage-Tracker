@@ -365,9 +365,16 @@ final class StatusBarUIManager {
             let usage = profile.claudeUsage ?? ClaudeUsage.empty
             let showRemaining = config.showRemainingPercentage
 
-            // Calculate percentages
-            let sessionUsed = usage.effectiveSessionPercentage
-            let weekUsed = usage.weeklyPercentage
+            // Bar values: session + week normally, one spend bar for a
+            // spend-limited profile.
+            let values = MultiProfileBarValues.make(for: usage, showWeek: config.showWeek, now: Date())
+            let hasSecond = values.secondaryUsed != nil
+            let sessionUsed = values.primaryUsed
+            let weekUsed = values.secondaryUsed ?? 0
+            let sessionElapsed = values.primaryElapsed
+            let weekElapsed = values.secondaryElapsed
+            // Name labels mark the spend bar with "$" ("Tr$").
+            let labelName = MultiProfileBarValues.label(for: profile.name, isSpend: values.isSpend)
 
             let sessionDisplay = UsageStatusCalculator.getDisplayPercentage(
                 usedPercentage: sessionUsed,
@@ -378,16 +385,6 @@ final class StatusBarUIManager {
                 showRemaining: showRemaining
             )
 
-            let sessionElapsed = UsageStatusCalculator.elapsedFraction(
-                resetTime: usage.sessionResetTime,
-                duration: Constants.sessionWindow,
-                showRemaining: false
-            )
-            let weekElapsed = UsageStatusCalculator.elapsedFraction(
-                resetTime: usage.weeklyResetTime,
-                duration: Constants.weeklyWindow,
-                showRemaining: false
-            )
             let sessionStatus = UsageStatusCalculator.calculateStatus(
                 usedPercentage: sessionUsed,
                 showRemaining: showRemaining,
@@ -428,23 +425,23 @@ final class StatusBarUIManager {
                 if config.showProfileLabel {
                     image = renderer.createConcentricIconWithLabel(
                         sessionPercentage: sessionDisplay,
-                        weekPercentage: config.showWeek ? weekDisplay : 0,
+                        weekPercentage: hasSecond ? weekDisplay : 0,
                         sessionStatus: sessionStatus,
                         weekStatus: weekStatus,
-                        profileName: profile.name,
+                        profileName: labelName,
                         monochromeMode: useMonochrome,
                         isDarkMode: menuBarIsDark,
                         useSystemColor: false,
                         sessionTimeMarker: sessionMarker,
-                        weekTimeMarker: config.showWeek ? weekMarker : nil,
+                        weekTimeMarker: hasSecond ? weekMarker : nil,
                         sessionPaceStatus: sessionPaceStatus,
-                        weekPaceStatus: config.showWeek ? weekPaceStatus : nil,
+                        weekPaceStatus: hasSecond ? weekPaceStatus : nil,
                         showPaceMarker: config.showPaceMarker
                     )
                 } else {
                     image = renderer.createConcentricIcon(
                         sessionPercentage: sessionDisplay,
-                        weekPercentage: config.showWeek ? weekDisplay : 0,
+                        weekPercentage: hasSecond ? weekDisplay : 0,
                         sessionStatus: sessionStatus,
                         weekStatus: weekStatus,
                         profileInitial: String(profile.name.prefix(1)),
@@ -452,26 +449,26 @@ final class StatusBarUIManager {
                         isDarkMode: menuBarIsDark,
                         useSystemColor: false,
                         sessionTimeMarker: sessionMarker,
-                        weekTimeMarker: config.showWeek ? weekMarker : nil,
+                        weekTimeMarker: hasSecond ? weekMarker : nil,
                         sessionPaceStatus: sessionPaceStatus,
-                        weekPaceStatus: config.showWeek ? weekPaceStatus : nil,
+                        weekPaceStatus: hasSecond ? weekPaceStatus : nil,
                         showPaceMarker: config.showPaceMarker
                     )
                 }
             case .progressBar:
                 image = renderer.createMultiProfileProgressBar(
                     sessionPercentage: sessionDisplay,
-                    weekPercentage: config.showWeek ? weekDisplay : nil,
+                    weekPercentage: hasSecond ? weekDisplay : nil,
                     sessionStatus: sessionStatus,
                     weekStatus: weekStatus,
-                    profileName: config.showProfileLabel ? profile.name : nil,
+                    profileName: config.showProfileLabel ? labelName : nil,
                     monochromeMode: useMonochrome,
                     isDarkMode: menuBarIsDark,
                     useSystemColor: false,
                     sessionTimeMarker: sessionMarker,
-                    weekTimeMarker: config.showWeek ? weekMarker : nil,
+                    weekTimeMarker: hasSecond ? weekMarker : nil,
                     sessionPaceStatus: sessionPaceStatus,
-                    weekPaceStatus: config.showWeek ? weekPaceStatus : nil,
+                    weekPaceStatus: hasSecond ? weekPaceStatus : nil,
                     showPaceMarker: config.showPaceMarker
                 )
             case .compact:
@@ -488,15 +485,15 @@ final class StatusBarUIManager {
             case .percentage:
                 image = renderer.createMultiProfilePercentage(
                     sessionPercentage: sessionDisplay,
-                    weekPercentage: config.showWeek ? weekDisplay : nil,
+                    weekPercentage: hasSecond ? weekDisplay : nil,
                     sessionStatus: sessionStatus,
                     weekStatus: weekStatus,
-                    profileName: config.showProfileLabel ? profile.name : nil,
+                    profileName: config.showProfileLabel ? labelName : nil,
                     monochromeMode: useMonochrome,
                     isDarkMode: menuBarIsDark,
                     useSystemColor: false,
                     sessionPaceStatus: sessionPaceStatus,
-                    weekPaceStatus: config.showWeek ? weekPaceStatus : nil,
+                    weekPaceStatus: hasSecond ? weekPaceStatus : nil,
                     showPaceMarker: config.showPaceMarker
                 )
             }
@@ -598,18 +595,54 @@ final class StatusBarUIManager {
             return
         }
 
-        // Normal metric display
+        // Normal metric display. The layout swaps in the spend bar for
+        // spend-limited accounts and hides bars for windows the account lacks.
+        let layout = MenuBarSlotLayout.contents(enabled: config.enabledMetrics.map(\.metricType), usage: usage)
         for metricConfig in config.enabledMetrics {
-            guard let statusItem = statusItems[metricConfig.metricType],
-                  let button = statusItem.button else {
-                continue
-            }
+            renderSlot(
+                metricConfig: metricConfig,
+                content: layout[metricConfig.metricType] ?? .metric,
+                config: config,
+                usage: usage,
+                apiUsage: apiUsage
+            )
+        }
+    }
 
-            // Get actual menu bar appearance from the button
-            let menuBarIsDark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    /// Draws one single-profile status item according to its layout slot.
+    private func renderSlot(
+        metricConfig: MetricIconConfig,
+        content: MenuBarSlotContent,
+        config: MenuBarIconConfiguration,
+        usage: ClaudeUsage,
+        apiUsage: APIUsage?
+    ) {
+        guard let statusItem = statusItems[metricConfig.metricType],
+              let button = statusItem.button else {
+            return
+        }
 
-            // Create image directly using our renderer
-            let image = renderer.createImage(
+        // Hidden items are removed from the bar; every other state shows the item.
+        statusItem.isVisible = content != .hidden
+        guard content != .hidden else { return }
+
+        // Get actual menu bar appearance from the button
+        let menuBarIsDark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+
+        let image: NSImage
+        switch content {
+        case .spend:
+            image = renderer.createSpendImage(
+                config: metricConfig,
+                globalConfig: config,
+                usage: usage,
+                isDarkMode: menuBarIsDark,
+                colorMode: config.colorMode,
+                singleColorHex: config.singleColorHex,
+                showIconName: config.showIconNames
+            )
+        case .metric, .hidden:
+            image = renderer.createImage(
                 for: metricConfig.metricType,
                 config: metricConfig,
                 globalConfig: config,
@@ -621,10 +654,10 @@ final class StatusBarUIManager {
                 showIconName: config.showIconNames,
                 showNextSessionTime: metricConfig.showNextSessionTime
             )
-
-            image.isTemplate = config.colorMode == .monochrome && !config.showPaceMarker
-            button.image = image
         }
+
+        image.isTemplate = config.colorMode == .monochrome && !config.showPaceMarker
+        button.image = image
     }
 
     /// Updates a specific metric's button
@@ -633,36 +666,20 @@ final class StatusBarUIManager {
         usage: ClaudeUsage,
         apiUsage: APIUsage?
     ) {
-        guard let statusItem = statusItems[metricType],
-              let button = statusItem.button else {
-            return
-        }
-
         // Get config from active profile
         let config = ProfileManager.shared.activeProfile?.iconConfig ?? .default
         guard let metricConfig = config.config(for: metricType) else {
             return
         }
 
-        // Get the actual menu bar appearance from the button's effective appearance
-        let menuBarIsDark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-
-        // Create image directly using our renderer
-        let image = renderer.createImage(
-            for: metricType,
-            config: metricConfig,
-            globalConfig: config,
+        let layout = MenuBarSlotLayout.contents(enabled: config.enabledMetrics.map(\.metricType), usage: usage)
+        renderSlot(
+            metricConfig: metricConfig,
+            content: layout[metricType] ?? .metric,
+            config: config,
             usage: usage,
-            apiUsage: apiUsage,
-            isDarkMode: menuBarIsDark,
-            colorMode: config.colorMode,
-            singleColorHex: config.singleColorHex,
-            showIconName: config.showIconNames,
-            showNextSessionTime: metricConfig.showNextSessionTime
+            apiUsage: apiUsage
         )
-
-        image.isTemplate = config.colorMode == .monochrome && !config.showPaceMarker
-        button.image = image
     }
 
     /// Mirrors the auth fallback used for actual usage fetches so UI gating does

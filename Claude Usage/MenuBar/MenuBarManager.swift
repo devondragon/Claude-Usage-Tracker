@@ -1385,9 +1385,22 @@ class MenuBarManager: NSObject, ObservableObject {
     // MARK: - Auto-Switch Profile on Session Limit
 
     /// Checks if the current profile hit 100% and switches to the next available one
+    /// Whether auto-switch may move to a profile with this cached usage.
+    /// Accounts without usage windows (company-paid Enterprise seats, even
+    /// before their spend loads) are never targets.
+    static func isAutoSwitchCandidate(_ usage: ClaudeUsage?) -> Bool {
+        guard let usage else { return true }  // no saved usage: treat as available
+        if usage.hasNoUsageWindows { return false }
+        return usage.effectiveSessionPercentage < 100.0
+    }
+
     private func checkAutoSwitchIfNeeded(usage: ClaudeUsage, currentProfile: Profile) {
         // Guard: feature must be enabled
         guard SharedDataStore.shared.loadAutoSwitchProfileEnabled() else { return }
+
+        // A spend-limited profile never triggers a switch: moving off the work
+        // seat would move work onto another account.
+        guard !usage.hasNoUsageWindows else { return }
 
         // Guard: need more than 1 profile
         let profiles = profileManager.profiles
@@ -1473,11 +1486,8 @@ class MenuBarManager: NSObject, ObservableObject {
             // Must have usage credentials
             guard candidate.hasUsageCredentials else { continue }
 
-            // If no saved usage data, treat as available
-            guard let candidateUsage = candidate.claudeUsage else { return candidate }
-
-            // Must be below 100%
-            if candidateUsage.effectiveSessionPercentage < 100.0 {
+            // No saved usage, or below 100% and not spend-limited
+            if Self.isAutoSwitchCandidate(candidate.claudeUsage) {
                 return candidate
             }
         }
@@ -1493,6 +1503,8 @@ class MenuBarManager: NSObject, ObservableObject {
         previousUsage: ClaudeUsage?,
         newUsage: ClaudeUsage
     ) {
+        // Accounts without usage windows have no session to record.
+        guard !newUsage.hasNoUsageWindows else { return }
         let lastKnown = lastKnownSessionResetTime[profileId]
         let newResetTime = newUsage.sessionResetTime
 
@@ -1535,6 +1547,7 @@ class MenuBarManager: NSObject, ObservableObject {
         previousUsage: ClaudeUsage?,
         newUsage: ClaudeUsage
     ) {
+        guard !newUsage.hasNoUsageWindows else { return }
         let lastKnown = lastKnownWeeklyResetTime[profileId]
         let newResetTime = newUsage.weeklyResetTime
 

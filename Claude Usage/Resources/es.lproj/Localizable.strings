@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Design";
 "menubar.extra_usage" = "Uso Extra";
+"menubar.monthly_spend" = "Gasto mensual";
+"menubar.spend_of_limit" = "%@ de %@";
 "menubar.api_credits" = "Créditos API";
 "menubar.5_hour_window" = "Ventana móvil de 5 horas";
 "menubar.all_models" = "Todos los modelos";
@@ -143,6 +145,14 @@
 "notification.session_warning.message" = "Has usado %@ de tu límite de sesión de 5 horas. %@";
 "notification.session_critical.title" = "Uso de Sesión Crítico";
 "notification.session_critical.message" = "¡Has usado %@ de tu límite de sesión de 5 horas! %@";
+"notification.spend_info.title" = "Gasto mensual";
+"notification.spend_info.message" = "Has usado %@ de tu límite de gasto mensual. %@";
+"notification.spend_warning.title" = "Gasto mensual alto";
+"notification.spend_warning.message" = "Has usado %@ de tu límite de gasto mensual. %@";
+"notification.spend_critical.title" = "Límite de gasto mensual casi agotado";
+"notification.spend_critical.message" = "Has usado %@ de tu límite de gasto mensual. %@";
+"notification.spend_limit_reached.title" = "Límite de gasto mensual alcanzado";
+"notification.spend_limit_reached.message" = "Has alcanzado tu límite de gasto mensual. %@";
 "notification.session_reset.title" = "Sesión Reiniciada";
 "notification.session_reset.message" = "¡Tu sesión se ha reiniciado! Ahora tienes una sesión de 5 horas nueva disponible.";
 "notification.session_auto_started.title" = "Sesión Iniciada Automáticamente";

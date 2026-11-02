@@ -64,6 +64,8 @@
 "menubar.fable_usage" = "Fable";
 "menubar.design_usage" = "Дизайн";
 "menubar.extra_usage" = "Додаткове використання";
+"menubar.monthly_spend" = "Щомісячні витрати";
+"menubar.spend_of_limit" = "%@ з %@";
 "menubar.api_credits" = "Кредити API";
 "menubar.api_cost" = "Вартість API";
 "menubar.this_month" = "Цього місяця";
@@ -229,6 +231,14 @@
 "notification.session_warning.message" = "Ви використали %@ ліміту 5-годинної сесії. %@";
 "notification.session_critical.title" = "Критичне використання сесії";
 "notification.session_critical.message" = "Ви використали %@ ліміту 5-годинної сесії! %@";
+"notification.spend_info.title" = "Щомісячні витрати";
+"notification.spend_info.message" = "Ви використали %@ свого ліміту щомісячних витрат. %@";
+"notification.spend_warning.title" = "Високі щомісячні витрати";
+"notification.spend_warning.message" = "Ви використали %@ свого ліміту щомісячних витрат. %@";
+"notification.spend_critical.title" = "Ліміт щомісячних витрат майже вичерпано";
+"notification.spend_critical.message" = "Ви використали %@ свого ліміту щомісячних витрат. %@";
+"notification.spend_limit_reached.title" = "Досягнуто ліміту щомісячних витрат";
+"notification.spend_limit_reached.message" = "Ви досягли свого ліміту щомісячних витрат. %@";
 "notification.session_reset.title" = "Сесію скинуто";
 "notification.session_reset.message" = "Вашу сесію скинуто! Тепер доступна нова 5-годинна сесія.";
 "notification.session_auto_started.title" = "Сесію запущено автоматично";
