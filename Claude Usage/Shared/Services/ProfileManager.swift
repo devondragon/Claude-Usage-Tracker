@@ -136,6 +136,7 @@ class ProfileManager: ObservableObject {
         // Remove the profile's credentials from the Keychain (they no longer live
         // in the profiles plist — #267).
         profileStore.deleteProfileSecrets(id)
+        AutoStartAttemptStore().clear(for: id)
 
         // Switch to first profile if deleted active
         if activeProfile?.id == id {
