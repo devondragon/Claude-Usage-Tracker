@@ -8,7 +8,6 @@ class NotificationManager: NotificationServiceProtocol {
 
     // Track previous session percentage per profile to detect resets
     private var previousSessionPercentages: [String: Double] = [:]
-    private var previousSpendPeriodStart: [String: Date] = [:]
 
     // Track which notifications have been sent to prevent duplicates
     // Persisted to UserDefaults to survive app restarts
@@ -131,14 +130,10 @@ class NotificationManager: NotificationServiceProtocol {
 
         let now = Date()
 
-        if usage.isSpendLimited {
-            // A new spend period allows the thresholds to fire again.
-            let periodStart = SpendPeriod.containing(now).start
-            if let previous = previousSpendPeriodStart[profileName], previous != periodStart {
-                sentNotifications = sentNotifications.filter { !$0.hasPrefix(profileName) }
-            }
-            previousSpendPeriodStart[profileName] = periodStart
-        } else {
+        // Spend alerts carry their month in the sent-alert ID (see
+        // `thresholdAlert`), so a new month can alert again; only session
+        // alerts need the reset-based clearing below.
+        if !usage.isSpendLimited {
             let sessionPercentage = usage.effectiveSessionPercentage
             let previousPercentage = previousSessionPercentages[profileName] ?? 0.0
 
@@ -168,19 +163,39 @@ class NotificationManager: NotificationServiceProtocol {
                 type: alert.type,
                 percentage: alert.percentage,
                 thresholdLevel: alert.threshold,
+                periodKey: alert.periodKey,
                 resetTime: alert.resetTime,
                 soundName: settings.soundName
             )
         }
     }
 
+    /// ID used to send an alert at most once. `periodKey` (the spend month,
+    /// "yyyy-MM") scopes spend alerts to their month; these IDs persist
+    /// across app restarts.
+    static func alertIdentifier(profileName: String, type: AlertType, level: Int, periodKey: String?) -> String {
+        let base = "\(profileName)_\(type.rawValue)_\(level)"
+        return periodKey.map { "\(base)_\($0)" } ?? base
+    }
+
+    private static let periodKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM"
+        return formatter
+    }()
+
     /// The threshold alert `usage` calls for, if any. Spend-limited accounts
     /// alert on monthly spend; everything else on the 5-hour session.
     static func thresholdAlert(for usage: ClaudeUsage, settings: NotificationSettings, now: Date) -> ThresholdAlert? {
         if usage.isSpendLimited {
-            let resetTime = SpendPeriod.containing(now).end
+            let period = SpendPeriod.containing(now)
+            let resetTime = period.end
+            let periodKey = periodKeyFormatter.string(from: period.start)
             if usage.spendLimitReached {
-                return ThresholdAlert(type: .spendLimitReached, threshold: 100, percentage: usage.spendPercentage, resetTime: resetTime)
+                return ThresholdAlert(type: .spendLimitReached, threshold: 100, percentage: usage.spendPercentage, resetTime: resetTime, periodKey: periodKey)
             }
             guard let threshold = settings.sortedThresholds.last(where: { usage.spendPercentage >= Double($0) }) else {
                 return nil
@@ -191,7 +206,7 @@ class NotificationManager: NotificationServiceProtocol {
             case 90..<95: type = .spendWarning
             default: type = .spendInfo
             }
-            return ThresholdAlert(type: type, threshold: threshold, percentage: usage.spendPercentage, resetTime: resetTime)
+            return ThresholdAlert(type: type, threshold: threshold, percentage: usage.spendPercentage, resetTime: resetTime, periodKey: periodKey)
         }
 
         let sessionPercentage = usage.effectiveSessionPercentage
@@ -204,7 +219,7 @@ class NotificationManager: NotificationServiceProtocol {
         case 90..<95: type = .sessionWarning
         default: type = .sessionInfo
         }
-        return ThresholdAlert(type: type, threshold: threshold, percentage: sessionPercentage, resetTime: usage.sessionResetTime)
+        return ThresholdAlert(type: type, threshold: threshold, percentage: sessionPercentage, resetTime: usage.sessionResetTime, periodKey: nil)
     }
 
     /// Checks usage and sends appropriate alerts (legacy, for backwards compatibility)
@@ -225,12 +240,12 @@ class NotificationManager: NotificationServiceProtocol {
     }
 
     /// Sends a profile-specific usage alert
-    private func sendProfileAlert(profileName: String, type: AlertType, percentage: Double, thresholdLevel: Int? = nil, resetTime: Date?, soundName: String = "default") {
+    private func sendProfileAlert(profileName: String, type: AlertType, percentage: Double, thresholdLevel: Int? = nil, periodKey: String? = nil, resetTime: Date?, soundName: String = "default") {
         // Use the configured threshold level (not current percentage) to prevent duplicate notifications
         let level = thresholdLevel ?? Int(percentage)
 
         // Create unique identifier based on alert type and threshold level
-        let identifier = "\(profileName)_\(type.rawValue)_\(level)"
+        let identifier = Self.alertIdentifier(profileName: profileName, type: type, level: level, periodKey: periodKey)
 
         // Check if we've already sent this notification
         guard !sentNotifications.contains(identifier) else {
@@ -517,4 +532,6 @@ struct ThresholdAlert: Equatable {
     let threshold: Int
     let percentage: Double
     let resetTime: Date?
+    /// Spend month ("yyyy-MM") for spend alerts; nil for session alerts.
+    let periodKey: String?
 }

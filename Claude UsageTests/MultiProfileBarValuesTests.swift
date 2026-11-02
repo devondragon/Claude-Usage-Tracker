@@ -59,4 +59,14 @@ final class MultiProfileBarValuesTests: XCTestCase {
         XCTAssertEqual(MultiProfileBarValues.label(for: "T", isSpend: true), "T$")
         XCTAssertEqual(MultiProfileBarValues.label(for: "Personal", isSpend: false), "Personal")
     }
+
+    func testSpendOverCapDrawsFull() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.hasWeeklyWindow = false
+        usage.costUsed = 160000
+        usage.costLimit = 150000
+
+        XCTAssertEqual(MultiProfileBarValues.make(for: usage, showWeek: true, now: now).primaryUsed, 100)
+    }
 }

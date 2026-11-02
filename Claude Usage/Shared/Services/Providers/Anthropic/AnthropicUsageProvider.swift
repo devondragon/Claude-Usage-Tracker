@@ -117,7 +117,7 @@ final class AnthropicUsageProvider: UsageProviderService {
 
     /// The result has no 5-hour or weekly limit and no spend: spend may be missing.
     static func needsSpendFromClaudeCode(_ usage: ClaudeUsage) -> Bool {
-        !usage.hasSessionWindow && !usage.hasWeeklyWindow && usage.costLimit == nil
+        !usage.hasSessionWindow && !usage.hasWeeklyWindow && (usage.costLimit ?? 0) <= 0
     }
 
     /// Minimum time between spend fetches through the Claude Code login. The

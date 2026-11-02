@@ -69,4 +69,12 @@ final class SpendFallbackTests: XCTestCase {
         XCTAssertEqual(merged.weeklyPercentage, 0)
         XCTAssertTrue(merged.isSpendLimited)
     }
+
+    func testEnabledZeroLimitStillNeedsFallback() {
+        // claude.ai's overage endpoint can report an enabled limit of 0.
+        var usage = noWindows()
+        usage.costUsed = 0
+        usage.costLimit = 0
+        XCTAssertTrue(AnthropicUsageProvider.needsSpendFromClaudeCode(usage))
+    }
 }

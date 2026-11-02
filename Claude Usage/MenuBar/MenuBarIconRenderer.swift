@@ -102,7 +102,8 @@ final class MenuBarIconRenderer {
         now: Date = Date()
     ) -> NSImage {
         let showRemaining = globalConfig.showRemainingPercentage
-        let used = usage.spendPercentage
+        // Spend can exceed the cap; the bar draws full at most.
+        let used = min(usage.spendPercentage, 100)
         let elapsed = SpendPeriod.containing(now).elapsedFraction(at: now)
         let displayPercentage = UsageStatusCalculator.getDisplayPercentage(
             usedPercentage: used,

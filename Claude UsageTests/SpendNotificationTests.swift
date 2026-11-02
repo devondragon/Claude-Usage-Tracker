@@ -64,4 +64,24 @@ final class SpendNotificationTests: XCTestCase {
         XCTAssertEqual(result?.type, .sessionWarning)
         XCTAssertEqual(result?.threshold, 90)
     }
+
+    func testSpendAlertCarriesMonthKey() {
+        XCTAssertEqual(alert(spend(80))?.periodKey, "2026-11")
+        var usage = ClaudeUsage.empty
+        usage.sessionPercentage = 92
+        usage.sessionResetTime = Date().addingTimeInterval(3600)
+        XCTAssertNil(alert(usage)?.periodKey)
+    }
+
+    func testAlertIdentifierDiffersByMonth() {
+        // Sent-alert IDs persist across restarts; the month keeps November's
+        // alert from blocking December's.
+        let november = NotificationManager.alertIdentifier(profileName: "Tribe", type: .spendInfo, level: 75, periodKey: "2026-11")
+        let december = NotificationManager.alertIdentifier(profileName: "Tribe", type: .spendInfo, level: 75, periodKey: "2026-12")
+        XCTAssertNotEqual(november, december)
+        XCTAssertEqual(
+            NotificationManager.alertIdentifier(profileName: "Tribe", type: .sessionInfo, level: 75, periodKey: nil),
+            "Tribe_session_info_75"
+        )
+    }
 }

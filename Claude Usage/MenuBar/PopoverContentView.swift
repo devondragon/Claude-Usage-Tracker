@@ -224,7 +224,9 @@ struct PopoverContentView: View {
             SmartUsageDashboard(usage: displayUsage, apiUsage: displayAPIUsage, provider: displayProvider)
 
             // Contextual Insights
-            if showInsights {
+            // Insights are about session and weekly usage, which a
+            // spend-limited account does not have.
+            if showInsights && !displayUsage.isSpendLimited {
                 PopoverDivider()
                 ContextualInsights(usage: displayUsage)
                     .transition(.opacity)

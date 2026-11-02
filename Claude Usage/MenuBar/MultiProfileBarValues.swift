@@ -28,7 +28,8 @@ struct MultiProfileBarValues: Equatable {
     static func make(for usage: ClaudeUsage, showWeek: Bool, now: Date) -> MultiProfileBarValues {
         if usage.isSpendLimited {
             return MultiProfileBarValues(
-                primaryUsed: usage.spendPercentage,
+                // Spend can exceed the cap; the bar draws full at most.
+                primaryUsed: min(usage.spendPercentage, 100),
                 primaryElapsed: SpendPeriod.containing(now).elapsedFraction(at: now),
                 secondaryUsed: nil,
                 secondaryElapsed: nil,
