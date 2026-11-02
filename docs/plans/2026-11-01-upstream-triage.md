@@ -19,6 +19,28 @@ Work order:
 3. Auto-start: fix #334 first, then the new controls. Write a short design doc before coding, since PR #349 overlaps.
 4. The rest of phase 2, then phase 3.
 
+## Status (updated 2026-11-02)
+
+Done and merged into this fork's `main` (fork PRs #1 to #7):
+
+- Phase 0, fork identity (#2). Bundle ID, settings import, own Keychain names, Release signing with team `NLLX25D2J2`, Sparkle off, upstream pings and prompts removed.
+- #337 history disk writes (#3). Upstream PR #338 plus two more fake-reset causes: the `now + 5h` placeholder for an idle session, and the billing `resets_at` parse falling back to `Date()`.
+- #335 follow-up (#4). Cached usage of a non-active profile no longer feeds reset detection or history. #335 itself (a non-active Codex profile on the shared `auth.json` is not polled) is by design.
+- #331 and #355 (#5). Upstream PR #345 plus pinned-entry handling, a stale-copy save in `activateProfile`, and auto-switch trying the next candidate.
+- PR #276 (#6). CLI OAuth profiles use the OAuth usage endpoint for per-model quotas.
+- Linking profiles to logged-in Claude Code config dirs (#7). Design: `2026-11-01-claude-code-accounts.md`. Pinned profiles are read-only.
+
+Next: step 3 of the work order, auto-start. Fix #334 first (compare upstream PR #349 with a smaller fix), then write the design for the four controls before coding.
+
+Open loose ends:
+
+- CI has never run on the fork. Workflows have to be enabled in the GitHub Actions tab, and `build.yml` only runs for PRs into `main`.
+- Not exercised by hand yet: switching between profiles (#5), and linking, unlinking and switching linked profiles (#7).
+- Devon's Tribe and Lumena profiles have no credentials in the fork. Link them in Settings > CLI Account > Claude Code accounts.
+- History files (12 to 27 MB) are pruned the first time a snapshot is recorded, not at launch. Backups were taken on 2026-11-01 in that session's scratchpad.
+- The login keychain holds about 5,229 `Claude Code-credentials-<hash>` entries left by temporary config dirs. Cleanup deletes Claude Code's items, so it needs Devon's go-ahead.
+- Devon's running copy launches from the `~/git/Claude-Usage-Tracker-local` worktree (branch `local/integration`, same tree as `main`). Remove it after switching to a build from `main`, and quit the app before any rebuild over its bundle.
+
 ## How to take upstream PRs
 
 Fetch each with `git fetch upstream pull/<N>/head:<branch>` (after adding the `upstream` remote), rebase onto our `main`, review it as if it were new code, run the build and tests, and open it as a PR on this fork with the original author credited in the description. One fix per branch and PR.
@@ -37,9 +59,9 @@ A build of this fork currently shares the bundle ID, UserDefaults, Keychain item
 
 | Issue | Problem | Source of fix |
 |---|---|---|
-| #337 | Usage history detects a "reset" on nearly every poll and rewrites the whole history file each refresh. Reported 10 to 17 GB/hour of disk writes and a 47 MB file. | PR #338 (+182/-86, adds `UsageHistoryTests`). Needs a migration or prune for existing bloated files; check the PR does this. |
-| #331 | On profile switch, a failed `invalid_grant` refresh still writes the dead CLI snapshot into the `Claude Code-credentials` Keychain entry, logging out every running Claude Code session. | PR #345 (+119/-14, touches all lproj files). |
-| #355 | Switching to a profile pinned to a custom `CLAUDE_CONFIG_DIR` Keychain entry overwrites the default entry. Re-sync on a pinned profile reads the default entry instead of the pinned one. | No PR. Write fix: the write path in `applyProfileCredentials` and `syncToProfile` must honor `customKeychainServiceName`, and switching to a pinned profile should not touch the default entry. Do together with #345 since both are in `ProfileManager` and `ClaudeCodeSyncService`. |
+| #337 | Usage history detects a "reset" on nearly every poll and rewrites the whole history file each refresh. Reported 10 to 17 GB/hour of disk writes and a 47 MB file. | Done: fork PR #3. |
+| #331 | On profile switch, a failed `invalid_grant` refresh still writes the dead CLI snapshot into the `Claude Code-credentials` Keychain entry, logging out every running Claude Code session. | Done: fork PR #5. |
+| #355 | Switching to a profile pinned to a custom `CLAUDE_CONFIG_DIR` Keychain entry overwrites the default entry. Re-sync on a pinned profile reads the default entry instead of the pinned one. | Done: fork PR #5. |
 | #334 | Auto-start creates an empty Haiku chat on claude.ai every ~5 minutes when the init message fails. | PR #349 (+920/-341, splits `AutoStartSessionService`). Large; review closely or write a smaller fix: delete the conversation on send failure, persist the last attempted reset time, cap retries. |
 | #321 | Every launch overwrites `~/.claude/statusline-command.sh` and `fetch-claude-usage.swift` with no diff check or backup, losing user edits. | No PR. Write fix: only rewrite when content differs, and keep a backup of a modified script. |
 
@@ -49,8 +71,8 @@ A build of this fork currently shares the bundle ID, UserDefaults, Keychain item
 |---|---|---|
 | #356 | Ultra plan has no 5-hour limit (`five_hour: null`). The app shows a 0% session bar with a reset that never arrives, and the statusline fetch script throws. Same parsing in `ClaudeAPIService` (~L800), `AutoStartSessionService` (~L248), `StatuslineService` (~L59). | No PR. Write fix: represent "no session limit" explicitly and hide session UI. |
 | (Codex) | Codex Pro also has no 5-hour limit. | PR #342 (+360/-72). Solve #356 and this with one "has session limit" concept instead of two provider-specific paths. |
-| #335 | Multi-profile display never polls non-active profiles, so their numbers freeze. | No PR. Write fix in `MenuBarManager.refreshAllSelectedProfiles()`; cached fallback values must not feed reset detection or history. |
-| #276 (PR) | Per-model weekly bars (Fable/Opus/Sonnet) stay at 0% for CLI OAuth profiles because that path reads rate-limit headers only. | PR #276 (+11/-4). Possibly explains #317. |
+| #335 | Multi-profile display never polls non-active profiles, so their numbers freeze. | Cached-value part done: fork PR #4. Not polling a non-active profile without its own credentials is by design (#290). |
+| #276 (PR) | Per-model weekly bars (Fable/Opus/Sonnet) stay at 0% for CLI OAuth profiles because that path reads rate-limit headers only. | Done: fork PR #6. Possibly explains #317. |
 | #319 | Cloudflare `cf_clearance` is a partitioned cookie that `HTTPCookieStorage.cookies(for:)` doesn't return, giving E3006 on every refresh behind VPNs. | PR #320 (+144/-5, CI passing, has tests). |
 | #322 | Statusline drops the usage segment when the cache is older than 300 s, which happens in normal use. | No PR yet (Ghost-9 offered to write one; ymendel has a patch in a config repo). Write fix alongside #321. |
 | #333 | Stack-overflow crash on macOS 26 in SwiftUI material rendering (detached popover and settings windows). | PR #279 opts out of Liquid Glass app-wide via `UIDesignRequiresCompatibility`. The alternative is extending the existing layout reentrancy guard to those windows. Decide which. |
