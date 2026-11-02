@@ -1025,32 +1025,42 @@ class MenuBarManager: NSObject, ObservableObject {
                 do {
                     let newUsage = try await fetchUsageForProfile(profile)
 
+                    // A non-active profile without its own live credential gets its stored
+                    // snapshot back unchanged (#290). A live fetch always sets a new
+                    // `lastUpdated`, so equality means cached data: display it, but don't
+                    // feed it to reset detection or record it as a new history snapshot.
+                    let isCachedUsage = previousUsage.map { newUsage == $0 } ?? false
+
                     await MainActor.run {
-                        // Check for resets before updating usage
-                        self.checkAndRecordSessionReset(
-                            profileId: profile.id,
-                            previousUsage: previousUsage,
-                            newUsage: newUsage
-                        )
-                        self.checkAndRecordWeeklyReset(
-                            profileId: profile.id,
-                            previousUsage: previousUsage,
-                            newUsage: newUsage
-                        )
+                        if isCachedUsage {
+                            LoggingService.shared.log("MenuBarManager: '\(profile.name)' returned cached usage; skipping reset detection and history")
+                        } else {
+                            // Check for resets before updating usage
+                            self.checkAndRecordSessionReset(
+                                profileId: profile.id,
+                                previousUsage: previousUsage,
+                                newUsage: newUsage
+                            )
+                            self.checkAndRecordWeeklyReset(
+                                profileId: profile.id,
+                                previousUsage: previousUsage,
+                                newUsage: newUsage
+                            )
 
-                        // Record periodic snapshots for history charts (skip if reset just occurred)
-                        let flags = self.resetJustRecorded[profile.id] ?? (session: false, weekly: false)
+                            // Record periodic snapshots for history charts (skip if reset just occurred)
+                            let flags = self.resetJustRecorded[profile.id] ?? (session: false, weekly: false)
 
-                        if !flags.session {
-                            UsageHistoryService.shared.recordSessionPeriodic(for: profile.id, usage: newUsage, provider: profile.provider)
+                            if !flags.session {
+                                UsageHistoryService.shared.recordSessionPeriodic(for: profile.id, usage: newUsage, provider: profile.provider)
+                            }
+
+                            if !flags.weekly {
+                                UsageHistoryService.shared.recordWeeklyPeriodic(for: profile.id, usage: newUsage, provider: profile.provider)
+                            }
+
+                            // Clear reset flags for next cycle
+                            self.resetJustRecorded[profile.id] = (session: false, weekly: false)
                         }
-
-                        if !flags.weekly {
-                            UsageHistoryService.shared.recordWeeklyPeriodic(for: profile.id, usage: newUsage, provider: profile.provider)
-                        }
-
-                        // Clear reset flags for next cycle
-                        self.resetJustRecorded[profile.id] = (session: false, weekly: false)
 
                         // Save to profile
                         self.profileManager.saveClaudeUsage(newUsage, for: profile.id)
