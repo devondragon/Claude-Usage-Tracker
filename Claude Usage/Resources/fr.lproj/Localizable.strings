@@ -565,8 +565,15 @@
 "general.autostart_title" = "Démarrage Automatique de Session";
 "general.autostart_subtitle" = "Démarrer automatiquement une nouvelle session si nécessaire";
 "general.autostart_toggle" = "Démarrage Automatique de Nouvelle Session";
-"general.autostart_description" = "Envoyer automatiquement un message lors de la réinitialisation de la session";
-"general.autostart_requirement" = "• Clé de session configurée dans Identifiants → onglet Claude.ai";
+"general.autostart_description" = "Garde une fenêtre de session de 5 heures ouverte pendant votre horaire en envoyant un message d'un mot via Claude Code.";
+"general.autostart_requirement" = "• Claude Code connecté à ce compte (un dossier de configuration lié ou la connexion par défaut)";
+"general.autostart_weekdays" = "Semaine";
+"general.autostart_weekends" = "Week-end";
+"general.autostart_start" = "Début";
+"general.autostart_stop" = "Fin";
+"general.autostart_last_success" = "Dernier démarrage %@";
+"general.autostart_last_failure" = "Dernière tentative échouée %@ : %@";
+"general.autostart_never" = "Aucun démarrage automatique pour l'instant";
 "general.notifications_title" = "Notifications";
 "general.notifications_subtitle" = "Recevoir des notifications sur les jalons d'utilisation";
 "general.connected" = "Connecté";

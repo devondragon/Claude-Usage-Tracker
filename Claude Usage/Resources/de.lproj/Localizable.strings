@@ -587,8 +587,15 @@
 "general.autostart_title" = "Sitzungs-Auto-Start";
 "general.autostart_subtitle" = "Automatisch eine neue Sitzung bei Bedarf starten";
 "general.autostart_toggle" = "Neue Sitzung Automatisch Starten";
-"general.autostart_description" = "Automatisch eine Nachricht senden, wenn die Sitzung zurückgesetzt wird";
-"general.autostart_requirement" = "• Sitzungsschlüssel im Tab 'Anmeldedaten → Claude.ai' konfiguriert";
+"general.autostart_description" = "Hält während Ihres Zeitplans ein 5-Stunden-Sitzungsfenster offen, indem eine Ein-Wort-Nachricht über Claude Code gesendet wird.";
+"general.autostart_requirement" = "• Claude Code ist bei diesem Konto angemeldet (verknüpftes Konfigurationsverzeichnis oder Standard-Anmeldung)";
+"general.autostart_weekdays" = "Wochentage";
+"general.autostart_weekends" = "Wochenende";
+"general.autostart_start" = "Start";
+"general.autostart_stop" = "Ende";
+"general.autostart_last_success" = "Zuletzt gestartet %@";
+"general.autostart_last_failure" = "Letzter Versuch fehlgeschlagen %@: %@";
+"general.autostart_never" = "Noch kein Auto-Start";
 "general.notifications_title" = "Benachrichtigungen";
 "general.notifications_subtitle" = "Über Nutzungsmeilensteine benachrichtigt werden";
 "general.connected" = "Verbunden";

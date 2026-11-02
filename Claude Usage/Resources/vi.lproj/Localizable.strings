@@ -565,8 +565,15 @@
 "general.autostart_title" = "Tự động bắt đầu phiên";
 "general.autostart_subtitle" = "Tự động bắt đầu phiên mới khi cần";
 "general.autostart_toggle" = "Tự động bắt đầu phiên mới";
-"general.autostart_description" = "Tự động gửi tin nhắn khi phiên đặt lại";
-"general.autostart_requirement" = "• Khoá phiên đã được cấu hình trong tab Credentials → Claude.ai";
+"general.autostart_description" = "Giữ cửa sổ phiên 5 giờ luôn mở trong lịch của bạn bằng cách gửi một tin nhắn một từ qua Claude Code.";
+"general.autostart_requirement" = "• Claude Code đã đăng nhập vào tài khoản này (thư mục cấu hình được liên kết hoặc đăng nhập mặc định)";
+"general.autostart_weekdays" = "Ngày trong tuần";
+"general.autostart_weekends" = "Cuối tuần";
+"general.autostart_start" = "Bắt đầu";
+"general.autostart_stop" = "Kết thúc";
+"general.autostart_last_success" = "Lần bắt đầu gần nhất %@";
+"general.autostart_last_failure" = "Lần thử gần nhất thất bại %@: %@";
+"general.autostart_never" = "Chưa có lần tự động bắt đầu nào";
 "general.notifications_title" = "Thông báo";
 "general.notifications_subtitle" = "Nhận thông báo về các mốc mức sử dụng";
 "general.connected" = "Đã kết nối";

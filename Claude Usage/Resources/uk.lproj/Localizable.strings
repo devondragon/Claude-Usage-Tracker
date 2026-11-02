@@ -565,8 +565,15 @@
 "general.autostart_title" = "Автозапуск сесії";
 "general.autostart_subtitle" = "Автоматично запускати нову сесію за потреби";
 "general.autostart_toggle" = "Автозапуск нової сесії";
-"general.autostart_description" = "Автоматично надсилати повідомлення при скиданні сесії";
-"general.autostart_requirement" = "• Ключ сесії налаштовано в Облікові дані → вкладка Claude.ai";
+"general.autostart_description" = "Утримує 5-годинне вікно сеансу відкритим протягом вашого розкладу, надсилаючи повідомлення з одного слова через Claude Code.";
+"general.autostart_requirement" = "• Claude Code із входом в цей обліковий запис (пов'язаний каталог конфігурації або стандартний вхід)";
+"general.autostart_weekdays" = "Будні";
+"general.autostart_weekends" = "Вихідні";
+"general.autostart_start" = "Початок";
+"general.autostart_stop" = "Кінець";
+"general.autostart_last_success" = "Останній запуск %@";
+"general.autostart_last_failure" = "Остання спроба невдала %@: %@";
+"general.autostart_never" = "Автозапусків ще не було";
 "general.notifications_title" = "Сповіщення";
 "general.notifications_subtitle" = "Отримуйте сповіщення про досягнення лімітів використання";
 "general.connected" = "Підключено";

@@ -587,8 +587,15 @@
 "general.autostart_title" = "セッション自動開始";
 "general.autostart_subtitle" = "必要に応じて自動的に新しいセッションを開始";
 "general.autostart_toggle" = "新しいセッションを自動開始";
-"general.autostart_description" = "セッションがリセットされたときに自動的にメッセージを送信";
-"general.autostart_requirement" = "• 認証情報 → Claude.aiタブでセッションキーが構成されている";
+"general.autostart_description" = "スケジュール中、Claude Code から 1 語のメッセージを送信して、5 時間のセッションウィンドウを開いたままにします。";
+"general.autostart_requirement" = "• このアカウントで Claude Code にログイン済み(リンクされた設定ディレクトリ、またはデフォルトのログイン)";
+"general.autostart_weekdays" = "平日";
+"general.autostart_weekends" = "週末";
+"general.autostart_start" = "開始";
+"general.autostart_stop" = "終了";
+"general.autostart_last_success" = "最終開始 %@";
+"general.autostart_last_failure" = "最終試行に失敗 %@: %@";
+"general.autostart_never" = "まだ自動開始されていません";
 "general.notifications_title" = "通知";
 "general.notifications_subtitle" = "使用状況のマイルストーンについて通知を受け取る";
 "general.connected" = "接続済み";

@@ -581,8 +581,15 @@
 "general.autostart_title" = "Início Automático de Sessão";
 "general.autostart_subtitle" = "Iniciar automaticamente uma nova sessão quando necessário";
 "general.autostart_toggle" = "Início Automático de Nova Sessão";
-"general.autostart_description" = "Enviar automaticamente uma mensagem quando a sessão for redefinida";
-"general.autostart_requirement" = "• Chave de sessão configurada em Credenciais → aba Claude.ai";
+"general.autostart_description" = "Mantém uma janela de sessão de 5 horas aberta durante o seu horário, enviando uma mensagem de uma palavra pelo Claude Code.";
+"general.autostart_requirement" = "• Claude Code conectado a esta conta (um diretório de configuração vinculado ou o login padrão)";
+"general.autostart_weekdays" = "Dias úteis";
+"general.autostart_weekends" = "Fins de semana";
+"general.autostart_start" = "Início";
+"general.autostart_stop" = "Fim";
+"general.autostart_last_success" = "Último início %@";
+"general.autostart_last_failure" = "Última tentativa falhou %@: %@";
+"general.autostart_never" = "Nenhum início automático ainda";
 "general.notifications_title" = "Notificações";
 "general.notifications_subtitle" = "Receber notificações sobre marcos de uso";
 "general.connected" = "Conectado";

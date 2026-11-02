@@ -566,8 +566,15 @@
 "general.autostart_title" = "自動啟動 Session";
 "general.autostart_subtitle" = "需要時自動啟動新 Session";
 "general.autostart_toggle" = "自動啟動新 Session";
-"general.autostart_description" = "Session 重置時自動傳送訊息";
-"general.autostart_requirement" = "• 在憑證 → Claude.ai 分頁中設定了 Session 金鑰";
+"general.autostart_description" = "在您的排程期間,透過 Claude Code 傳送一個單字的訊息,讓 5 小時的工作階段視窗保持開啟。";
+"general.autostart_requirement" = "• 此帳號已登入 Claude Code(已連結的設定目錄或預設登入)";
+"general.autostart_weekdays" = "平日";
+"general.autostart_weekends" = "週末";
+"general.autostart_start" = "開始";
+"general.autostart_stop" = "結束";
+"general.autostart_last_success" = "上次啟動 %@";
+"general.autostart_last_failure" = "上次嘗試失敗 %@:%@";
+"general.autostart_never" = "尚未自動啟動";
 "general.notifications_title" = "通知";
 "general.notifications_subtitle" = "取得使用里程碑通知";
 "general.connected" = "已連線";

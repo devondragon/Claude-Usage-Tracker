@@ -565,8 +565,15 @@
 "general.autostart_title" = "Oturumu Otomatik Başlat";
 "general.autostart_subtitle" = "Gerektiğinde otomatik olarak yeni bir oturum başlat";
 "general.autostart_toggle" = "Yeni Oturumu Otomatik Başlat";
-"general.autostart_description" = "Oturum sıfırlandığında otomatik olarak mesaj gönder";
-"general.autostart_requirement" = "• Kimlik Bilgileri → Claude.ai sekmesinde oturum anahtarı yapılandırılmış olmalı";
+"general.autostart_description" = "Programınız boyunca Claude Code üzerinden tek kelimelik bir mesaj göndererek 5 saatlik oturum penceresini açık tutar.";
+"general.autostart_requirement" = "• Claude Code bu hesapta oturum açmış olmalı (bağlı bir yapılandırma dizini veya varsayılan oturum)";
+"general.autostart_weekdays" = "Hafta içi";
+"general.autostart_weekends" = "Hafta sonu";
+"general.autostart_start" = "Başlangıç";
+"general.autostart_stop" = "Bitiş";
+"general.autostart_last_success" = "Son başlatma %@";
+"general.autostart_last_failure" = "Son deneme başarısız %@: %@";
+"general.autostart_never" = "Henüz otomatik başlatma yok";
 "general.notifications_title" = "Bildirimler";
 "general.notifications_subtitle" = "Kullanım kilometre taşları hakkında bildirim al";
 "general.connected" = "Bağlı";
