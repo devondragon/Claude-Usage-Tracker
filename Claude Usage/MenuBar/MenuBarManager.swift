@@ -1420,10 +1420,29 @@ class MenuBarManager: NSObject, ObservableObject {
 
         // Activate the next profile
         let fromName = currentProfile.name
-        let toName = nextProfile.name
         let notificationSettings = currentProfile.notificationSettings
         Task {
-            await profileManager.activateProfile(nextProfile.id)
+            // A cancelled switch (e.g. the target's saved CLI login is dead) must not be
+            // announced. Try the remaining candidates instead of staying on an exhausted
+            // profile: this profile is already in autoSwitchedProfileIds, so auto-switch
+            // would not fire for it again until its session resets.
+            var tried: Set<UUID> = [profileId]
+            var target: Profile? = nextProfile
+            var switchedTo: Profile?
+            while let candidate = target {
+                if await profileManager.activateProfile(candidate.id) {
+                    switchedTo = candidate
+                    break
+                }
+                LoggingService.shared.log("AutoSwitch: switch to '\(candidate.name)' did not complete, trying the next profile")
+                tried.insert(candidate.id)
+                target = findNextAvailableProfile(after: currentProfile, excluding: tried)
+            }
+            guard let switchedTo else {
+                LoggingService.shared.log("AutoSwitch: no switch completed, staying on '\(fromName)'")
+                return
+            }
+            let toName = switchedTo.name
 
             await MainActor.run {
                 // Send notification
@@ -1440,7 +1459,7 @@ class MenuBarManager: NSObject, ObservableObject {
     }
 
     /// Finds the next profile with available session capacity, wrapping around
-    private func findNextAvailableProfile(after currentProfile: Profile) -> Profile? {
+    private func findNextAvailableProfile(after currentProfile: Profile, excluding excluded: Set<UUID> = []) -> Profile? {
         let profiles = profileManager.profiles
         guard let currentIndex = profiles.firstIndex(where: { $0.id == currentProfile.id }) else { return nil }
 
@@ -1448,6 +1467,8 @@ class MenuBarManager: NSObject, ObservableObject {
         for offset in 1..<count {
             let index = (currentIndex + offset) % count
             let candidate = profiles[index]
+
+            guard !excluded.contains(candidate.id) else { continue }
 
             // Must have usage credentials
             guard candidate.hasUsageCredentials else { continue }

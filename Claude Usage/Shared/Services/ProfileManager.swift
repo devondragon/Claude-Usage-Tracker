@@ -141,7 +141,9 @@ class ProfileManager: ObservableObject {
         if activeProfile?.id == id {
             if let first = profiles.first {
                 Task {
-                    await activateProfile(first.id)
+                    // The deleted profile is gone, so a dead login on `first` must not leave it
+                    // as the active profile: activate anyway, without writing the snapshot.
+                    await activateProfile(first.id, cancelIfLoginExpired: false)
                 }
             }
         }
@@ -187,20 +189,26 @@ class ProfileManager: ObservableObject {
 
     // MARK: - Profile Activation (Centralized)
 
-    func activateProfile(_ id: UUID) async {
+    /// Returns whether `id` is the active profile when this returns. `false` means the switch
+    /// did not happen (another switch in flight, unknown profile, or cancelled because the
+    /// target's saved CLI login is dead). With `cancelIfLoginExpired: false` a dead login does
+    /// not cancel: the profile is still activated, but its snapshot is not written to the
+    /// keychain (used when the active profile was deleted and something must take its place).
+    @discardableResult
+    func activateProfile(_ id: UUID, cancelIfLoginExpired: Bool = true) async -> Bool {
         guard !switchingSemaphore else {
             LoggingService.shared.log("Profile switch already in progress, ignoring")
-            return
+            return false
         }
 
         guard let profile = profiles.first(where: { $0.id == id }) else {
             LoggingService.shared.log("Profile not found: \(id)")
-            return
+            return false
         }
 
         if activeProfile?.id == id {
             LoggingService.shared.log("Profile already active: \(profile.name)")
-            return
+            return true
         }
 
         switchingSemaphore = true
@@ -231,7 +239,7 @@ class ProfileManager: ObservableObject {
             LoggingService.shared.log("Profile not found after reload: \(id)")
             switchingSemaphore = false
             isSwitchingProfile = false
-            return
+            return false
         }
 
         // Apply new profile's CLI credentials (if available; Anthropic-only —
@@ -246,24 +254,83 @@ class ProfileManager: ObservableObject {
             // keychain and Claude Code would 401 ("Please run /login"). This refreshes
             // via the refresh_token grant and persists the rotated tokens back to the
             // profile, so applyProfileCredentials below writes a valid token.
-            if let refreshed = await cliSyncService.ensureFreshCredentials(for: updatedProfile.id, allowRotation: true) {
+            var applySnapshot = true
+            var refreshRejected = false
+            if let refreshed = await cliSyncService.ensureFreshCredentials(
+                for: updatedProfile.id,
+                allowRotation: true,
+                onRefreshRejected: { refreshRejected = true }
+            ) {
                 LoggingService.shared.log("✓ Ensured fresh credentials before apply for: \(updatedProfile.name)")
                 _ = refreshed
                 // Reload so applyProfileCredentials picks up the refreshed token.
                 profiles = profileStore.loadProfiles()
+            } else if refreshRejected, let pinned = cliSyncService.pinnedConfigDirService(of: updatedProfile) {
+                // #355: a pinned profile never writes to the default login, so a dead
+                // token in its own entry is no reason to cancel the switch. That config
+                // dir needs its own /login.
+                LoggingService.shared.logError("Saved CLI login for '\(updatedProfile.name)' in \(pinned) could not be refreshed; run /login in that Claude Code config dir")
+                applySnapshot = false
+            } else if refreshRejected {
+                // #331: the token endpoint answered invalid_grant (the saved refresh token was
+                // consumed or has expired), so the snapshot is dead. Writing it would replace the
+                // live login every running Claude Code session shares and log them all out, so
+                // the keychain is left alone. Other refresh failures (offline, 5xx, 429) fall
+                // through to the apply below: the refresh token may still be good, and Claude
+                // Code refreshes the expired access token itself.
+                var adopted = false
+                if cliSyncService.systemHoldsAccount(of: updatedProfile) {
+                    // The live login already is this account (the user ran /login with it): adopt it.
+                    do {
+                        try cliSyncService.syncToProfile(updatedProfile.id)
+                        profiles = profileStore.loadProfiles()
+                        adopted = true
+                        LoggingService.shared.log("✓ Adopted the live CLI login for '\(updatedProfile.name)' in place of its dead snapshot")
+                    } catch {
+                        LoggingService.shared.logError("Failed to adopt the live CLI login", error: error)
+                    }
+                }
+                if adopted {
+                    applySnapshot = false
+                } else if cancelIfLoginExpired {
+                    LoggingService.shared.logError("Switch to '\(updatedProfile.name)' cancelled: its saved CLI login could not be refreshed, and the live login was left untouched")
+                    // The resync above may have saved rotated tokens for the profile we are
+                    // staying on. Point activeProfile at the reloaded copy, or a later
+                    // updateProfile(activeProfile) would write the consumed token back.
+                    if let currentId = activeProfile?.id,
+                       let reloadedCurrent = profiles.first(where: { $0.id == currentId }) {
+                        activeProfile = reloadedCurrent
+                    }
+                    switchingSemaphore = false
+                    isSwitchingProfile = false
+                    ErrorPresenter.shared.showAlert(for: AppError(
+                        code: .providerAuthRefreshFailed,
+                        message: String(format: "error.cli_login_expired".localized, updatedProfile.name),
+                        recoverySuggestion: String(format: "error.cli_login_expired_suggestion".localized, updatedProfile.name, updatedProfile.name)
+                    ))
+                    return false
+                } else {
+                    LoggingService.shared.logError("Activating '\(updatedProfile.name)' without its saved CLI login (could not be refreshed); the live login was left untouched")
+                    applySnapshot = false
+                }
             }
-            do {
-                try cliSyncService.applyProfileCredentials(updatedProfile.id)
-                LoggingService.shared.log("✓ Applied CLI credentials for: \(updatedProfile.name)")
-            } catch {
-                LoggingService.shared.logError("Failed to apply CLI credentials (non-fatal)", error: error)
+            if applySnapshot {
+                do {
+                    try cliSyncService.applyProfileCredentials(updatedProfile.id)
+                    LoggingService.shared.log("✓ Applied CLI credentials for: \(updatedProfile.name)")
+                } catch {
+                    LoggingService.shared.logError("Failed to apply CLI credentials (non-fatal)", error: error)
+                }
             }
         } else {
             LoggingService.shared.log("⚠️ Profile '\(updatedProfile.name)' has no CLI credentials JSON")
         }
 
-        // Update last used timestamp
-        var updated = updatedProfile
+        // Update last used timestamp. Start from the reloaded copy: the refresh and
+        // adopt paths above persist new credentials and reload `profiles`, and
+        // `updatedProfile` still holds the pre-refresh snapshot. Saving that copy
+        // would put the consumed refresh token back into the profile.
+        var updated = profiles.first(where: { $0.id == updatedProfile.id }) ?? updatedProfile
         updated.lastUsedAt = Date()
 
         if let index = profiles.firstIndex(where: { $0.id == updatedProfile.id }) {
@@ -297,6 +364,7 @@ class ProfileManager: ObservableObject {
         isSwitchingProfile = false
 
         LoggingService.shared.log("Successfully activated profile: \(updatedProfile.name)")
+        return true
     }
 
     // MARK: - Credentials

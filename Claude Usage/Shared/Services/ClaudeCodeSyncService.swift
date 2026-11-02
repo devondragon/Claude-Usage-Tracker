@@ -681,7 +681,47 @@ class ClaudeCodeSyncService {
             LoggingService.shared.log("readOAuthAccount: no .claude.json config file found")
             return nil
         }
+        return readOAuthAccount(from: url)
+    }
 
+    /// The keychain entry of a profile pinned to a non-default Claude Code config dir.
+    /// Nil when the profile is unpinned or pinned to the default `Claude Code-credentials`
+    /// entry: that entry is the one profile switching writes, so such a profile keeps the
+    /// unpinned switch and capture behavior, including its account check (#355).
+    func pinnedConfigDirService(of profile: Profile) -> String? {
+        guard let svc = profile.customKeychainServiceName, svc != Self.legacyServiceName else {
+            return nil
+        }
+        return svc
+    }
+
+    /// The `oauthAccount` of the Claude Code config dir that owns `serviceName`.
+    /// The unsuffixed entry belongs to the default `~/.claude`; a hashed entry
+    /// belongs to the `~/.claude*` dir whose path hashes to its suffix (see
+    /// `discoverAccountLabels()`). Returns nil when no such dir is found, so callers
+    /// never fall back to the default account's identity for a pinned entry (#355).
+    func readOAuthAccount(
+        forKeychainService serviceName: String,
+        homePath: String = FileManager.default.homeDirectoryForCurrentUser.path
+    ) -> String? {
+        if serviceName == Self.legacyServiceName {
+            return readOAuthAccount()
+        }
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: homePath) else {
+            return nil
+        }
+        for name in entries where name.hasPrefix(".claude") {
+            let dir = "\(homePath)/\(name)"
+            guard serviceName == "\(Self.legacyServiceName)-\(sha256HexPrefix(dir, length: 8))" else {
+                continue
+            }
+            return readOAuthAccount(from: URL(fileURLWithPath: dir).appendingPathComponent(".claude.json"))
+        }
+        LoggingService.shared.log("readOAuthAccount: no config dir found for keychain entry \(serviceName)")
+        return nil
+    }
+
+    private func readOAuthAccount(from url: URL) -> String? {
         guard let data = try? Data(contentsOf: url),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let oauthAccount = root["oauthAccount"] as? [String: Any] else {
@@ -712,6 +752,16 @@ class ClaudeCodeSyncService {
         if let uuid = obj["accountUuid"] as? String, !uuid.isEmpty { return uuid }
         if let email = obj["emailAddress"] as? String, !email.isEmpty { return email }
         return nil
+    }
+
+    /// Whether Claude Code's live login (`.claude.json` `oauthAccount`) is the same account as
+    /// `profile`. False when either side has no account identity.
+    func systemHoldsAccount(of profile: Profile) -> Bool {
+        guard let system = accountIdentity(fromOAuthAccountJSON: readOAuthAccount()),
+              let stored = accountIdentity(fromOAuthAccountJSON: profile.oauthAccountJSON) else {
+            return false
+        }
+        return system == stored
     }
 
     /// Writes an `oauthAccount` object (serialized JSON string) back into
@@ -756,7 +806,21 @@ class ClaudeCodeSyncService {
 
     /// Syncs credentials from system to profile (one-time copy)
     func syncToProfile(_ profileId: UUID) throws {
-        guard let jsonData = try readSystemCredentials() else {
+        var profiles = ProfileStore.shared.loadProfiles()
+        guard let index = profiles.firstIndex(where: { $0.id == profileId }) else {
+            throw ClaudeCodeError.noProfileCredentials
+        }
+
+        // A pinned profile syncs from its own keychain entry and config dir, not
+        // from whichever account the default `claude` is logged into (#355).
+        let pinnedService = pinnedConfigDirService(of: profiles[index])
+        let source: String?
+        if let pinnedService {
+            source = readKeychainCredentials(serviceName: pinnedService)
+        } else {
+            source = try readSystemCredentials()
+        }
+        guard let jsonData = source else {
             throw ClaudeCodeError.noCredentialsFound
         }
 
@@ -768,13 +832,7 @@ class ClaudeCodeSyncService {
 
         // Capture current oauthAccount from .claude.json (if present) so we can
         // restore it when this profile is re-activated. See issue #175.
-        let capturedOAuthAccount = readOAuthAccount()
-
-        // Save to profile directly
-        var profiles = ProfileStore.shared.loadProfiles()
-        guard let index = profiles.firstIndex(where: { $0.id == profileId }) else {
-            throw ClaudeCodeError.noProfileCredentials
-        }
+        let capturedOAuthAccount = pinnedService.map { readOAuthAccount(forKeychainService: $0) } ?? readOAuthAccount()
 
         profiles[index].cliCredentialsJSON = jsonData
         if let capturedOAuthAccount = capturedOAuthAccount {
@@ -797,6 +855,14 @@ class ClaudeCodeSyncService {
               let jsonData = profile.cliCredentialsJSON else {
             LoggingService.shared.log("❌ No CLI credentials found for profile: \(profileId)")
             throw ClaudeCodeError.noProfileCredentials
+        }
+
+        // A pinned profile belongs to its own Claude Code config dir, which already
+        // reads its own keychain entry. Writing its token into the default entry and
+        // `~/.claude.json` would log the default `claude` into this account (#355).
+        if let pinned = pinnedConfigDirService(of: profile) {
+            LoggingService.shared.log("Profile '\(profile.name)' is pinned to \(pinned); leaving the default Claude Code login untouched")
+            return
         }
 
         LoggingService.shared.log("📦 Found CLI credentials, writing to keychain and credentials file...")
@@ -1001,7 +1067,15 @@ class ClaudeCodeSyncService {
     /// On a successful refresh, the new credentials are written back to BOTH the profile's
     /// cached JSON AND (when applicable) the custom keychain entry, so Claude Code and the
     /// Tracker stay in sync.
-    func ensureFreshCredentials(for profileId: UUID, allowRotation: Bool = false) async -> String? {
+    ///
+    /// `onRefreshRejected` is called when the token endpoint answers `invalid_grant`, i.e. the
+    /// saved refresh token is definitively dead. Other failures (offline, timeout, 5xx, 429)
+    /// also return `nil` but do not call it: the refresh token may still be good.
+    func ensureFreshCredentials(
+        for profileId: UUID,
+        allowRotation: Bool = false,
+        onRefreshRejected: (() -> Void)? = nil
+    ) async -> String? {
         let profiles = ProfileStore.shared.loadProfiles()
         guard let profile = profiles.first(where: { $0.id == profileId }) else {
             return nil
@@ -1129,6 +1203,9 @@ class ClaudeCodeSyncService {
             // tokens — only `{ "error": "...", "error_description": "..." }` style payloads —
             // so logging it is safe.
             LoggingService.shared.logError("ensureFreshCredentials: refresh failed for '\(profile.name)' (HTTP \(status)) body=\(body)")
+            if body.contains("invalid_grant") {
+                onRefreshRejected?()
+            }
             return nil
         } catch {
             LoggingService.shared.logError("ensureFreshCredentials: refresh failed for '\(profile.name)'", error: error)
@@ -1208,6 +1285,29 @@ class ClaudeCodeSyncService {
     /// This ensures we always have the latest CLI login when switching profiles
     func resyncBeforeSwitching(for profileId: UUID) throws {
         LoggingService.shared.log("Re-syncing CLI credentials before profile switch: \(profileId)")
+
+        // A pinned profile captures from its own entry and config dir. The default
+        // entry may hold a different account, so the identity checks below (which
+        // compare against the default `~/.claude.json`) do not apply (#355).
+        if let pinned = ProfileStore.shared.loadProfiles().first(where: { $0.id == profileId }).flatMap(pinnedConfigDirService(of:)) {
+            guard let pinnedJSON = readKeychainCredentials(serviceName: pinned),
+                  let data = pinnedJSON.data(using: .utf8),
+                  (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+                LoggingService.shared.log("No usable credentials in pinned entry \(pinned) - skipping re-sync")
+                return
+            }
+            let pinnedOAuthAccount = readOAuthAccount(forKeychainService: pinned)
+            var profiles = ProfileStore.shared.loadProfiles()
+            guard let index = profiles.firstIndex(where: { $0.id == profileId }) else { return }
+            profiles[index].cliCredentialsJSON = pinnedJSON
+            if let pinnedOAuthAccount {
+                profiles[index].oauthAccountJSON = pinnedOAuthAccount
+            }
+            profiles[index].cliAccountSyncedAt = Date()
+            ProfileStore.shared.saveProfiles(profiles)
+            LoggingService.shared.log("✓ Re-synced CLI credentials from pinned entry \(pinned)")
+            return
+        }
 
         // Read fresh credentials from system (if user is logged in)
         guard let freshJSON = try readSystemCredentials() else {
