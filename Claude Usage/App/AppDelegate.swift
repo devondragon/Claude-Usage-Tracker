@@ -6,7 +6,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var menuBarManager: MenuBarManager?
     private var setupWindow: NSWindow?
 
+    /// True when the app is the host process for XCTest. Hosted test runs
+    /// (often several in parallel) would otherwise each add menu bar items,
+    /// start refresh timers, and call the usage APIs with real credentials.
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningTests else {
+            NSApp.setActivationPolicy(.accessory)
+            return
+        }
+
         // Disable window restoration for menu bar app
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
 
