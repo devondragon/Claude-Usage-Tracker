@@ -115,8 +115,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Avvio automatico sessione al ripristino";
-"session.auto_start.description" = "Invia automaticamente 'Ciao' a Claude quando la sessione si ripristina a 0%. Questo mantiene la sessione sempre pronta senza intervento manuale.";
 "session.enable_auto_start" = "Abilita avvio automatico sessione";
 "session.beta_badge" = "BETA";
 
@@ -148,7 +146,7 @@
 "setup.instruction.step4" = "Fai doppio clic sul suo Valore e copia (Cmd+C)";
 "setup.paste_session_key" = "Incolla il valore di sessionKey che hai copiato";
 "setup.auto_start_session" = "Avvio automatico sessione al ripristino";
-"setup.auto_start_session.description" = "Invia automaticamente 'Ciao' a Claude quando la sessione si ripristina a 0%. Questo mantiene la sessione sempre pronta senza intervento manuale.";
+"setup.auto_start_session.description" = "Mantiene aperta una finestra di sessione di 5 ore durante il tuo orario inviando un messaggio di una parola tramite Claude Code. L'orario si imposta nelle impostazioni del profilo.";
 "setup.enable_auto_start" = "Abilita avvio automatico sessione";
 "setup.menubar_appearance" = "Aspetto Barra dei Menu";
 "setup.choose_icon_style" = "Scegli il tuo stile di icona preferito";
@@ -787,7 +785,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Stai usando Claude Code?";
-"wizard.claude_code_info_description" = "Il monitoraggio dell'utilizzo funzionerà, ma la riga di stato CLI e l'avvio automatico della sessione non funzioneranno senza chiave di sessione";
+"wizard.claude_code_info_description" = "Il monitoraggio dell'utilizzo funziona. La riga di stato CLI richiede una chiave di sessione; l'avvio automatico richiede solo Claude Code connesso a questo account.";
 "wizard.claude_code_skip_setup" = "Salta configurazione";
 
 /* Migration Strings */

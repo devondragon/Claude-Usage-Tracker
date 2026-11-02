@@ -115,8 +115,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Iniciar sessão automaticamente ao reiniciar";
-"session.auto_start.description" = "Enviar automaticamente 'Oi' para o Claude quando sua sessão reiniciar para 0%. Isso mantém sua sessão sempre pronta sem intervenção manual.";
 "session.enable_auto_start" = "Habilitar início automático de sessão";
 "session.beta_badge" = "BETA";
 
@@ -148,7 +146,7 @@
 "setup.instruction.step4" = "Clique duas vezes no seu Valor e copie (Cmd+C)";
 "setup.paste_session_key" = "Cole o valor de sessionKey que você copiou";
 "setup.auto_start_session" = "Iniciar sessão automaticamente ao reiniciar";
-"setup.auto_start_session.description" = "Enviar automaticamente 'Oi' para o Claude quando sua sessão reiniciar para 0%. Isso mantém sua sessão sempre pronta sem intervenção manual.";
+"setup.auto_start_session.description" = "Mantém uma janela de sessão de 5 horas aberta durante o seu horário, enviando uma mensagem de uma palavra pelo Claude Code. O horário é definido nas configurações do perfil.";
 "setup.enable_auto_start" = "Habilitar início automático de sessão";
 "setup.menubar_appearance" = "Aparência da Barra de Menu";
 "setup.choose_icon_style" = "Escolha seu estilo de ícone preferido";
@@ -783,7 +781,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Usando Claude Code?";
-"wizard.claude_code_info_description" = "O rastreamento de uso funcionará, mas a linha de status CLI e o início automático de sessão não funcionarão sem a chave de sessão";
+"wizard.claude_code_info_description" = "O rastreamento de uso funciona. A linha de status CLI precisa da chave de sessão; o início automático só precisa do Claude Code conectado a esta conta.";
 "wizard.claude_code_skip_setup" = "Pular configuração";
 
 /* Migration Strings */

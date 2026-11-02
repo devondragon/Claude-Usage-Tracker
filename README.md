@@ -242,7 +242,7 @@ If you prefer manual configuration:
 
 - **Customize Icon**: Go to Settings → Appearance to choose your preferred menu bar style
 - **Enable Notifications**: Settings → Notifications to get threshold alerts
-- **Auto-Start Sessions**: Settings → Session Management to enable automatic session initialization
+- **Auto-Start Sessions**: Settings → General (profile) to turn on auto-start and set weekday and weekend hours; it needs Claude Code logged in to that profile's account
 - **Terminal Integration**: Settings → Claude Code to set up statusline (requires session key configuration)
 - **Keyboard Shortcuts**: Settings → Shortcuts to configure global hotkeys
 
@@ -385,7 +385,7 @@ Plain `claude` keeps following the **active** profile, exactly as before. Removi
 - Adaptive colors for light/dark mode
 
 ### Automation & Intelligence
-- **Auto-Start Sessions**: Automatically initialize new sessions when usage resets to 0%
+- **Auto-Start Sessions**: Keep a 5-hour window open during per-profile weekday and weekend hours by sending a one-word message through the Claude Code CLI (`claude -p`) under the profile's own login
 - **Auto-Switch Profiles**: Automatically switch to next profile at session limit
 - **Wake-from-Sleep Refresh**: Auto-refresh after waking with debounce
 - **Smart Notifications**: Threshold alerts at 75%, 90%, 95% + custom thresholds with sound picker
@@ -494,7 +494,7 @@ Customize menu bar icon per profile:
 #### General (Profile Settings)
 Per-profile behavior configuration:
 - **Refresh Interval**: Configure auto-refresh rate (5-300 seconds)
-- **Auto-Start Sessions**: Enable/disable automatic session initialization on reset
+- **Auto-Start Sessions**: Enable per profile, set weekday and weekend start and stop times, and see the last attempt's result. Runs `claude -p` under the profile's Claude Code login; a claude.ai session key is not needed
 - **Model Selection**: Uses the most cost-effective model available
 - **Notifications**: Per-profile threshold alerts (75%, 90%, 95%) + custom thresholds with sound picker
 

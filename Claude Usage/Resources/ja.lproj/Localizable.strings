@@ -117,8 +117,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "リセット時にセッションを自動開始";
-"session.auto_start.description" = "セッションが0%にリセットされたときに自動的にClaudeに「こんにちは」を送信します。これにより、手動操作なしでセッションが常に準備された状態になります。";
 "session.enable_auto_start" = "セッション自動開始を有効にする";
 "session.beta_badge" = "ベータ";
 
@@ -150,7 +148,7 @@
 "setup.instruction.step4" = "値をダブルクリックしてコピー（Cmd+C）";
 "setup.paste_session_key" = "コピーしたsessionKey値を貼り付け";
 "setup.auto_start_session" = "リセット時にセッションを自動開始";
-"setup.auto_start_session.description" = "セッションが0%にリセットされたときに自動的にClaudeに「こんにちは」を送信します。これにより、手動操作なしでセッションが常に準備された状態になります。";
+"setup.auto_start_session.description" = "スケジュール中、Claude Code から 1 語のメッセージを送信して、5 時間のセッションウィンドウを開いたままにします。スケジュールはプロファイル設定で設定します。";
 "setup.enable_auto_start" = "セッション自動開始を有効にする";
 "setup.menubar_appearance" = "メニューバーの外観";
 "setup.choose_icon_style" = "お好みのアイコンスタイルを選択";
@@ -789,7 +787,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Claude Codeを使用していますか？";
-"wizard.claude_code_info_description" = "使用状況の追跡は機能しますが、CLIステータスラインと自動セッション開始はセッションキーがないと機能しません";
+"wizard.claude_code_info_description" = "使用状況の追跡は機能します。CLIステータスラインにはセッションキーが必要です。自動セッション開始には、このアカウントでログインしたClaude Codeだけが必要です。";
 "wizard.claude_code_skip_setup" = "セットアップをスキップ";
 
 /* Migration Strings */

@@ -123,8 +123,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Sıfırlamada oturumu otomatik başlat";
-"session.auto_start.description" = "Oturumunuz %0'a sıfırlandığında Claude'a otomatik olarak 'Merhaba' gönderin. Bu, oturumunuzu manuel müdahale olmadan her zaman hazır tutar.";
 "session.enable_auto_start" = "Otomatik oturum başlatmayı etkinleştir";
 "session.beta_badge" = "BETA";
 
@@ -156,7 +154,7 @@
 "setup.instruction.step4" = "Değerine çift tıklayın ve kopyalayın (Cmd+C)";
 "setup.paste_session_key" = "Kopyaladığınız sessionKey değerini yapıştırın";
 "setup.auto_start_session" = "Sıfırlamada oturumu otomatik başlat";
-"setup.auto_start_session.description" = "Oturumunuz %0'a sıfırlandığında Claude 3.5 Haiku'ya otomatik olarak 'Merhaba' gönderin. Bu, oturumunuzu manuel müdahale olmadan her zaman hazır tutar.";
+"setup.auto_start_session.description" = "Programınız boyunca Claude Code üzerinden tek kelimelik bir mesaj göndererek 5 saatlik oturum penceresini açık tutar. Program, profil ayarlarından belirlenir.";
 "setup.enable_auto_start" = "Otomatik oturum başlatmayı etkinleştir";
 "setup.menubar_appearance" = "Menü Çubuğu Görünümü";
 "setup.choose_icon_style" = "Tercih ettiğiniz simge stilini seçin";
@@ -782,7 +780,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Claude Code mu Kullanıyorsunuz?";
-"wizard.claude_code_info_description" = "Kullanım takibi çalışacak, ancak CLI durum satırı ve otomatik oturum başlatma özelliği oturum anahtarı olmadan çalışmaz";
+"wizard.claude_code_info_description" = "Kullanım takibi çalışır. CLI durum satırı oturum anahtarı gerektirir; otomatik oturum başlatma yalnızca bu hesapla oturum açmış Claude Code gerektirir.";
 "wizard.claude_code_skip_setup" = "Kurulumu Atla";
 "wizard.migrate_description_short" = "Önceki uygulama sürümünden eski profil verilerinizi içe aktarın";
 

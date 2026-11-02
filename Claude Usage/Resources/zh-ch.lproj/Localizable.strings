@@ -124,8 +124,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "重置时自动启动会话";
-"session.auto_start.description" = "当您的会话重置为 0% 时自动向 Claude 发送 'Hi'。这使您的会话始终就绪，无需手动干预。";
 "session.enable_auto_start" = "启用自动启动会话";
 "session.beta_badge" = "测试版";
 
@@ -157,7 +155,7 @@
 "setup.instruction.step4" = "双击其值并复制 (Cmd+C)";
 "setup.paste_session_key" = "粘贴您复制的 sessionKey 值";
 "setup.auto_start_session" = "重置时自动启动会话";
-"setup.auto_start_session.description" = "当您的会话重置为 0% 时自动向 Claude 3.5 Haiku 发送 'Hi'。这使您的会话始终就绪，无需手动干预。";
+"setup.auto_start_session.description" = "在您的日程期间,通过 Claude Code 发送一个单词的消息,让 5 小时的会话窗口保持开启。日程在配置文件设置中设定。";
 "setup.enable_auto_start" = "启用自动启动会话";
 "setup.menubar_appearance" = "菜单栏外观";
 "setup.choose_icon_style" = "选择您偏好的图标样式";
@@ -789,7 +787,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "使用 Claude Code？";
-"wizard.claude_code_info_description" = "使用跟踪将正常工作，但没有会话密钥，CLI 状态行和自动启动会话将无法工作";
+"wizard.claude_code_info_description" = "使用跟踪可正常工作。CLI 状态行需要会话密钥；自动启动会话只需要 Claude Code 登录此账户。";
 "wizard.claude_code_skip_setup" = "跳过设置";
 "wizard.migrate_description_short" = "从以前的应用版本导入您的旧配置文件数据";
 "wizard.skip_migration" = "跳过";

@@ -117,8 +117,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Sitzung automatisch beim Zurücksetzen starten";
-"session.auto_start.description" = "Automatisch 'Hallo' an Claude senden, wenn Ihre Sitzung auf 0% zurückgesetzt wird. Dies hält Ihre Sitzung immer bereit ohne manuelle Eingriffe.";
 "session.enable_auto_start" = "Auto-Start der Sitzung aktivieren";
 "session.beta_badge" = "BETA";
 
@@ -150,7 +148,7 @@
 "setup.instruction.step4" = "Doppelklicken Sie auf seinen Wert und kopieren Sie (Cmd+C)";
 "setup.paste_session_key" = "Fügen Sie den sessionKey-Wert ein, den Sie kopiert haben";
 "setup.auto_start_session" = "Sitzung automatisch beim Zurücksetzen starten";
-"setup.auto_start_session.description" = "Automatisch 'Hallo' an Claude senden, wenn Ihre Sitzung auf 0% zurückgesetzt wird. Dies hält Ihre Sitzung immer bereit ohne manuelle Eingriffe.";
+"setup.auto_start_session.description" = "Hält während Ihres Zeitplans ein 5-Stunden-Sitzungsfenster offen, indem eine Ein-Wort-Nachricht über Claude Code gesendet wird. Den Zeitplan legen Sie in den Profileinstellungen fest.";
 "setup.enable_auto_start" = "Auto-Start der Sitzung aktivieren";
 "setup.menubar_appearance" = "Menüleisten-Erscheinungsbild";
 "setup.choose_icon_style" = "Wählen Sie Ihren bevorzugten Symbolstil";
@@ -789,7 +787,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Claude Code verwenden?";
-"wizard.claude_code_info_description" = "Nutzungsverfolgung funktioniert, aber CLI-Statuszeile & Auto-Start-Sitzung funktionieren nicht ohne Sitzungsschlüssel";
+"wizard.claude_code_info_description" = "Die Nutzungsverfolgung funktioniert. Die CLI-Statuszeile benötigt einen Sitzungsschlüssel; Auto-Start benötigt nur Claude Code, angemeldet mit diesem Konto.";
 "wizard.claude_code_skip_setup" = "Setup überspringen";
 
 /* Migration Strings */

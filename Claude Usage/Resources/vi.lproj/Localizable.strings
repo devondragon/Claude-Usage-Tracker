@@ -123,8 +123,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Tự động bắt đầu phiên khi đặt lại";
-"session.auto_start.description" = "Tự động gửi 'Hi' đến Claude khi phiên của bạn đặt lại về 0%. Điều này giúp phiên của bạn luôn sẵn sàng mà không cần thao tác thủ công.";
 "session.enable_auto_start" = "Bật tự động bắt đầu phiên";
 "session.beta_badge" = "BETA";
 
@@ -156,7 +154,7 @@
 "setup.instruction.step4" = "Nhấp đúp vào Value và sao chép (Cmd+C)";
 "setup.paste_session_key" = "Dán giá trị sessionKey bạn đã sao chép";
 "setup.auto_start_session" = "Tự động bắt đầu phiên khi đặt lại";
-"setup.auto_start_session.description" = "Tự động gửi 'Hi' đến Claude 3.5 Haiku khi phiên của bạn đặt lại về 0%. Điều này giúp phiên của bạn luôn sẵn sàng mà không cần thao tác thủ công.";
+"setup.auto_start_session.description" = "Giữ cửa sổ phiên 5 giờ luôn mở trong lịch của bạn bằng cách gửi một tin nhắn một từ qua Claude Code. Lịch được đặt trong cài đặt hồ sơ.";
 "setup.enable_auto_start" = "Bật tự động bắt đầu phiên";
 "setup.menubar_appearance" = "Giao diện thanh menu";
 "setup.choose_icon_style" = "Chọn kiểu biểu tượng bạn thích";
@@ -783,7 +781,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Đang dùng Claude Code?";
-"wizard.claude_code_info_description" = "Theo dõi mức sử dụng vẫn hoạt động, nhưng thanh trạng thái CLI & tự động bắt đầu phiên sẽ không hoạt động nếu không có khoá phiên";
+"wizard.claude_code_info_description" = "Theo dõi mức sử dụng vẫn hoạt động. Thanh trạng thái CLI cần khoá phiên; tự động bắt đầu phiên chỉ cần Claude Code đã đăng nhập tài khoản này.";
 "wizard.claude_code_skip_setup" = "Bỏ qua thiết lập";
 "wizard.migrate_description_short" = "Nhập dữ liệu hồ sơ cũ từ phiên bản ứng dụng trước";
 "wizard.skip_migration" = "Bỏ qua";

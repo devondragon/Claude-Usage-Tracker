@@ -124,8 +124,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "重置時自動啟動 Session";
-"session.auto_start.description" = "當您的 Session 重置為 0% 時自動向 Claude 傳送 'Hi'。這使您的 Session 始終就緒，無需手動干預。";
 "session.enable_auto_start" = "啟用自動啟動 Session";
 "session.beta_badge" = "測試版";
 
@@ -157,7 +155,7 @@
 "setup.instruction.step4" = "連按兩下其值並複製 (Cmd+C)";
 "setup.paste_session_key" = "貼上您複製的 sessionKey 值";
 "setup.auto_start_session" = "重置時自動啟動 Session";
-"setup.auto_start_session.description" = "當您的 Session 重置為 0% 時自動向 Claude 3.5 Haiku 傳送 'Hi'。這使您的 Session 始終就緒，無需手動干預。";
+"setup.auto_start_session.description" = "在您的排程期間,透過 Claude Code 傳送一個單字的訊息,讓 5 小時的工作階段視窗保持開啟。排程可在設定檔設定中調整。";
 "setup.enable_auto_start" = "啟用自動啟動 Session";
 "setup.menubar_appearance" = "選單列外觀";
 "setup.choose_icon_style" = "選擇您偏好的圖示樣式";
@@ -789,7 +787,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "使用 Claude Code？";
-"wizard.claude_code_info_description" = "即使沒有 Session 金鑰，用量追蹤仍可正常運作；但 CLI 狀態列與自動啟動 Session 會無法使用";
+"wizard.claude_code_info_description" = "用量追蹤可正常運作。CLI 狀態列需要 Session 金鑰；自動啟動 Session 只需要 Claude Code 登入此帳號。";
 "wizard.claude_code_skip_setup" = "跳過設定";
 "wizard.migrate_description_short" = "從以前的軟體版本匯入您的舊設定檔資料";
 "wizard.skip_migration" = "跳過";

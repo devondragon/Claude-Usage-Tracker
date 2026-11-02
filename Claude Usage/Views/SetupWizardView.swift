@@ -196,7 +196,7 @@ struct SetupWizardView: View {
                         Text("wizard.claude_code_info_description".localized)
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer()
