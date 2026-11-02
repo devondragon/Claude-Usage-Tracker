@@ -175,4 +175,24 @@ final class SpendParsingTests: XCTestCase {
         let (idleMax, _) = try AutoStartSessionService.parseUsageResponse(Data(idleMaxJSON.utf8))
         XCTAssertFalse(AutoStartSessionService.shouldSkipAutoStart(idleMax))
     }
+
+    func testOverageWithoutLimitDoesNotEraseSpend() throws {
+        // claude.ai's overage endpoint can report enabled with no limit (Enterprise seats).
+        var usage = try parse(enterpriseJSON)
+        let noLimit = try JSONDecoder().decode(
+            ClaudeAPIService.OverageSpendLimitResponse.self,
+            from: Data(#"{"is_enabled": true, "monthly_credit_limit": null, "used_credits": null, "currency": "USD"}"#.utf8)
+        )
+        usage = ClaudeAPIService.applyingOverage(noLimit, to: usage)
+        XCTAssertEqual(usage.costLimit, 150000)
+
+        let withLimit = try JSONDecoder().decode(
+            ClaudeAPIService.OverageSpendLimitResponse.self,
+            from: Data(#"{"is_enabled": true, "monthly_credit_limit": 10000, "used_credits": 250, "currency": "USD"}"#.utf8)
+        )
+        let applied = ClaudeAPIService.applyingOverage(withLimit, to: ClaudeUsage.empty)
+        XCTAssertEqual(applied.costLimit, 10000)
+        XCTAssertEqual(applied.costUsed, 250)
+        XCTAssertNotNil(applied.spendUpdatedAt)
+    }
 }

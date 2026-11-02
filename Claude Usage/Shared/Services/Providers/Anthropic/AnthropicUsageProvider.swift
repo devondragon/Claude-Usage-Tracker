@@ -150,6 +150,11 @@ final class AnthropicUsageProvider: UsageProviderService {
     /// When each profile's spend was last fetched (attempted) via Claude Code.
     private var lastSpendFetch: [UUID: Date] = [:]
 
+    /// The last spend fetched per profile. Preferred over `profile.claudeUsage`
+    /// as the fallback: refreshes run on profile copies taken when they start,
+    /// so overlapping refreshes can hand in a copy older than the last fetch.
+    private var lastFetchedSpend: [UUID: ClaudeUsage] = [:]
+
     /// `usage` with the spend fields of `source`; everything else unchanged.
     static func mergingSpend(from source: ClaudeUsage, into usage: ClaudeUsage) -> ClaudeUsage {
         var merged = usage
@@ -169,7 +174,7 @@ final class AnthropicUsageProvider: UsageProviderService {
         guard Self.needsSpendFromClaudeCode(usage) else { return usage }
 
         let now = Date()
-        let fallback = Self.resolveSpend(usage: usage, fetched: nil, cached: profile.claudeUsage, now: now)
+        let fallback = Self.resolveSpend(usage: usage, fetched: nil, cached: lastFetchedSpend[profile.id] ?? profile.claudeUsage, now: now)
         guard Self.shouldFetchSpend(lastFetch: lastSpendFetch[profile.id], now: now) else { return fallback }
         lastSpendFetch[profile.id] = now
 
@@ -188,6 +193,7 @@ final class AnthropicUsageProvider: UsageProviderService {
 
         do {
             let oauthUsage = try await apiService.fetchUsageData(oauthAccessToken: token)
+            lastFetchedSpend[profile.id] = oauthUsage
             return Self.resolveSpend(usage: usage, fetched: oauthUsage, cached: nil, now: now)
         } catch {
             LoggingService.shared.log("AnthropicUsageProvider: spend via Claude Code login failed for '\(profile.name)': \(error.localizedDescription)")

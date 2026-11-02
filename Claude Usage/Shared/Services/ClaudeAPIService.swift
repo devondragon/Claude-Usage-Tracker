@@ -465,11 +465,8 @@ class ClaudeAPIService: APIServiceProtocol {
         var claudeUsage = try parseUsageResponse(usageData)
 
         if let data = try? await overageDataTask,
-           let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data),
-           overage.isEnabled == true {
-            claudeUsage.costUsed = overage.usedCredits
-            claudeUsage.costLimit = overage.monthlyCreditLimit
-            claudeUsage.costCurrency = overage.currency
+           let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data) {
+            claudeUsage = Self.applyingOverage(overage, to: claudeUsage)
         }
 
         if let creditData = try? await creditGrantTask,
@@ -530,11 +527,8 @@ class ClaudeAPIService: APIServiceProtocol {
 
             if checkOverage,
                let data = try? await overageDataTask,
-               let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data),
-               overage.isEnabled == true {
-                claudeUsage.costUsed = overage.usedCredits
-                claudeUsage.costLimit = overage.monthlyCreditLimit
-                claudeUsage.costCurrency = overage.currency
+               let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data) {
+                claudeUsage = Self.applyingOverage(overage, to: claudeUsage)
             }
 
             if checkOverage,
@@ -1066,6 +1060,19 @@ class ClaudeAPIService: APIServiceProtocol {
     /// Robust utilization parser that handles Int, Double, or String types
     /// - Parameter value: The utilization value from API (can be Int, Double, or String)
     /// - Returns: Parsed percentage as Double, or 0.0 if parsing fails
+    /// Applies claude.ai's `overage_spend_limit` result. Only an enabled limit
+    /// above 0 replaces the cost fields: Enterprise seats report enabled with
+    /// no limit, which would otherwise erase spend read from the usage response.
+    static func applyingOverage(_ overage: OverageSpendLimitResponse, to usage: ClaudeUsage) -> ClaudeUsage {
+        guard overage.isEnabled == true, let limit = overage.monthlyCreditLimit, limit > 0 else { return usage }
+        var updated = usage
+        updated.costUsed = overage.usedCredits ?? 0
+        updated.costLimit = limit
+        updated.costCurrency = overage.currency
+        updated.spendUpdatedAt = Date()
+        return updated
+    }
+
     /// Reads the monthly spend cap. Prefers an enabled `extra_usage`; otherwise uses `spend`.
     /// Returns nil when spend tracking is disabled, missing, or has no limit.
     static func parseSpend(from json: [String: Any]) -> ParsedSpend? {
