@@ -8,6 +8,7 @@ class NotificationManager: NotificationServiceProtocol {
 
     // Track previous session percentage per profile to detect resets
     private var previousSessionPercentages: [String: Double] = [:]
+    private var previousSpendPeriodStart: [String: Date] = [:]
 
     // Track which notifications have been sent to prevent duplicates
     // Persisted to UserDefaults to survive app restarts
@@ -128,52 +129,82 @@ class NotificationManager: NotificationServiceProtocol {
             return
         }
 
-        let sessionPercentage = usage.effectiveSessionPercentage
-        let previousPercentage = previousSessionPercentages[profileName] ?? 0.0
+        let now = Date()
 
-        // Check for session reset (went from >0% to 0%)
-        if previousPercentage > 0.0 && sessionPercentage == 0.0 {
-            // Clear all sent notifications for this profile to allow re-notification in new session
-            sentNotifications = sentNotifications.filter { !$0.hasPrefix(profileName) }
+        if usage.isSpendLimited {
+            // A new spend period allows the thresholds to fire again.
+            let periodStart = SpendPeriod.containing(now).start
+            if let previous = previousSpendPeriodStart[profileName], previous != periodStart {
+                sentNotifications = sentNotifications.filter { !$0.hasPrefix(profileName) }
+            }
+            previousSpendPeriodStart[profileName] = periodStart
+        } else {
+            let sessionPercentage = usage.effectiveSessionPercentage
+            let previousPercentage = previousSessionPercentages[profileName] ?? 0.0
 
-            sendProfileAlert(
-                profileName: profileName,
-                type: .sessionReset,
-                percentage: sessionPercentage,
-                resetTime: usage.sessionResetTime,
-                soundName: settings.soundName
-            )
+            // Check for session reset (went from >0% to 0%)
+            if previousPercentage > 0.0 && sessionPercentage == 0.0 {
+                // Clear all sent notifications for this profile to allow re-notification in new session
+                sentNotifications = sentNotifications.filter { !$0.hasPrefix(profileName) }
 
-            // Note: Auto-start session is handled per-profile but called from elsewhere
-        }
-
-        // Update previous percentage for this specific profile
-        previousSessionPercentages[profileName] = sessionPercentage
-
-        // Check thresholds (highest first) - includes both built-in and custom
-        let thresholds = settings.sortedThresholds
-        for threshold in thresholds.reversed() {
-            if sessionPercentage >= Double(threshold) {
-                let alertType: AlertType
-                switch threshold {
-                case 95...:
-                    alertType = .sessionCritical
-                case 90..<95:
-                    alertType = .sessionWarning
-                default:
-                    alertType = .sessionInfo
-                }
                 sendProfileAlert(
                     profileName: profileName,
-                    type: alertType,
+                    type: .sessionReset,
                     percentage: sessionPercentage,
-                    thresholdLevel: threshold,
                     resetTime: usage.sessionResetTime,
                     soundName: settings.soundName
                 )
-                break
+
+                // Note: Auto-start session is handled per-profile but called from elsewhere
             }
+
+            // Update previous percentage for this specific profile
+            previousSessionPercentages[profileName] = sessionPercentage
         }
+
+        if let alert = Self.thresholdAlert(for: usage, settings: settings, now: now) {
+            sendProfileAlert(
+                profileName: profileName,
+                type: alert.type,
+                percentage: alert.percentage,
+                thresholdLevel: alert.threshold,
+                resetTime: alert.resetTime,
+                soundName: settings.soundName
+            )
+        }
+    }
+
+    /// The threshold alert `usage` calls for, if any. Spend-limited accounts
+    /// alert on monthly spend; everything else on the 5-hour session.
+    static func thresholdAlert(for usage: ClaudeUsage, settings: NotificationSettings, now: Date) -> ThresholdAlert? {
+        if usage.isSpendLimited {
+            let resetTime = SpendPeriod.containing(now).end
+            if usage.spendLimitReached {
+                return ThresholdAlert(type: .spendLimitReached, threshold: 100, percentage: usage.spendPercentage, resetTime: resetTime)
+            }
+            guard let threshold = settings.sortedThresholds.last(where: { usage.spendPercentage >= Double($0) }) else {
+                return nil
+            }
+            let type: AlertType
+            switch threshold {
+            case 95...: type = .spendCritical
+            case 90..<95: type = .spendWarning
+            default: type = .spendInfo
+            }
+            return ThresholdAlert(type: type, threshold: threshold, percentage: usage.spendPercentage, resetTime: resetTime)
+        }
+
+        let sessionPercentage = usage.effectiveSessionPercentage
+        guard let threshold = settings.sortedThresholds.last(where: { sessionPercentage >= Double($0) }) else {
+            return nil
+        }
+        let type: AlertType
+        switch threshold {
+        case 95...: type = .sessionCritical
+        case 90..<95: type = .sessionWarning
+        default: type = .sessionInfo
+        }
+        return ThresholdAlert(type: type, threshold: threshold, percentage: sessionPercentage, resetTime: usage.sessionResetTime)
     }
 
     /// Checks usage and sends appropriate alerts (legacy, for backwards compatibility)
@@ -388,6 +419,10 @@ extension NotificationManager {
         case opusCritical = "opus_critical"
         case sessionKeyExpiring = "session_key_expiring"
         case notificationsEnabled = "notifications_enabled"
+        case spendInfo = "spend_info"  // 75% of monthly spend cap
+        case spendWarning = "spend_warning"  // 90%
+        case spendCritical = "spend_critical"  // 95%
+        case spendLimitReached = "spend_limit_reached"
 
         var title: String {
             switch self {
@@ -415,6 +450,14 @@ extension NotificationManager {
                 return "API Session Expiring"
             case .notificationsEnabled:
                 return "notification.enabled.title".localized
+            case .spendInfo:
+                return "notification.spend_info.title".localized
+            case .spendWarning:
+                return "notification.spend_warning.title".localized
+            case .spendCritical:
+                return "notification.spend_critical.title".localized
+            case .spendLimitReached:
+                return "notification.spend_limit_reached.title".localized
             }
         }
 
@@ -453,7 +496,25 @@ extension NotificationManager {
                 return "Your API session key expires soon. Please re-authenticate to avoid interruption."
             case .notificationsEnabled:
                 return "notification.enabled.message".localized
+            case .spendInfo:
+                return "notification.spend_info.message".localized(with: percentStr, resetStr)
+            case .spendWarning:
+                return "notification.spend_warning.message".localized(with: percentStr, resetStr)
+            case .spendCritical:
+                return "notification.spend_critical.message".localized(with: percentStr, resetStr)
+            case .spendLimitReached:
+                return "notification.spend_limit_reached.message".localized(with: resetStr)
             }
         }
     }
+}
+
+// MARK: - Threshold alert decision
+
+/// A threshold alert to send: which type, at which configured threshold.
+struct ThresholdAlert: Equatable {
+    let type: NotificationManager.AlertType
+    let threshold: Int
+    let percentage: Double
+    let resetTime: Date?
 }

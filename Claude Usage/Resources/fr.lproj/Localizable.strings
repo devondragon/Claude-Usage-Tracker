@@ -210,6 +210,14 @@
 "notification.session_warning.message" = "Vous avez utilisé %@ de votre limite de session de 5 heures. %@";
 "notification.session_critical.title" = "Utilisation de Session Critique";
 "notification.session_critical.message" = "Vous avez utilisé %@ de votre limite de session de 5 heures ! %@";
+"notification.spend_info.title" = "Dépenses mensuelles";
+"notification.spend_info.message" = "Vous avez utilisé %@ de votre limite de dépenses mensuelles. %@";
+"notification.spend_warning.title" = "Dépenses mensuelles élevées";
+"notification.spend_warning.message" = "Vous avez utilisé %@ de votre limite de dépenses mensuelles. %@";
+"notification.spend_critical.title" = "Limite de dépenses mensuelles presque atteinte";
+"notification.spend_critical.message" = "Vous avez utilisé %@ de votre limite de dépenses mensuelles. %@";
+"notification.spend_limit_reached.title" = "Limite de dépenses mensuelles atteinte";
+"notification.spend_limit_reached.message" = "Vous avez atteint votre limite de dépenses mensuelles. %@";
 "notification.session_reset.title" = "Session Réinitialisée";
 "notification.session_reset.message" = "Votre session a été réinitialisée ! Vous disposez maintenant d'une nouvelle session de 5 heures.";
 "notification.session_auto_started.title" = "Session Démarrée Automatiquement";

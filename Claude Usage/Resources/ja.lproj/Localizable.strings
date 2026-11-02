@@ -224,6 +224,14 @@
 "notification.session_warning.message" = "5時間セッション制限の%@を使用しました。%@";
 "notification.session_critical.title" = "セッション使用量クリティカル";
 "notification.session_critical.message" = "5時間セッション制限の%@を使用しました！%@";
+"notification.spend_info.title" = "月間支出";
+"notification.spend_info.message" = "月間支出上限の %@ を使用しました。%@";
+"notification.spend_warning.title" = "月間支出が多くなっています";
+"notification.spend_warning.message" = "月間支出上限の %@ を使用しました。%@";
+"notification.spend_critical.title" = "月間支出上限にまもなく到達";
+"notification.spend_critical.message" = "月間支出上限の %@ を使用しました。%@";
+"notification.spend_limit_reached.title" = "月間支出上限に到達しました";
+"notification.spend_limit_reached.message" = "月間支出上限に到達しました。%@";
 "notification.session_reset.title" = "セッションリセット";
 "notification.session_reset.message" = "セッションがリセットされました！新しい5時間セッションが利用可能です。";
 "notification.session_auto_started.title" = "セッション自動開始";

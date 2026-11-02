@@ -231,6 +231,14 @@
 "notification.session_warning.message" = "You've used %@ of your 5-hour session limit. %@";
 "notification.session_critical.title" = "Session Usage Critical";
 "notification.session_critical.message" = "You've used %@ of your 5-hour session limit! %@";
+"notification.spend_info.title" = "Monthly spend";
+"notification.spend_info.message" = "You've used %@ of your monthly spend limit. %@";
+"notification.spend_warning.title" = "Monthly spend high";
+"notification.spend_warning.message" = "You've used %@ of your monthly spend limit. %@";
+"notification.spend_critical.title" = "Monthly spend almost used";
+"notification.spend_critical.message" = "You've used %@ of your monthly spend limit. %@";
+"notification.spend_limit_reached.title" = "Monthly spend limit reached";
+"notification.spend_limit_reached.message" = "You've reached your monthly spend limit. %@";
 "notification.session_reset.title" = "Session Reset";
 "notification.session_reset.message" = "Your session has reset! You now have a fresh 5-hour session available.";
 "notification.session_auto_started.title" = "Session Auto-Started";

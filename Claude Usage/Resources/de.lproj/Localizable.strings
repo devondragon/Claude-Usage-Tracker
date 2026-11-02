@@ -210,6 +210,14 @@
 "notification.session_warning.message" = "Sie haben %@ Ihres 5-Stunden-Sitzungslimits verwendet. %@";
 "notification.session_critical.title" = "Sitzungsnutzung Kritisch";
 "notification.session_critical.message" = "Sie haben %@ Ihres 5-Stunden-Sitzungslimits verwendet! %@";
+"notification.spend_info.title" = "Monatliche Ausgaben";
+"notification.spend_info.message" = "Sie haben %@ Ihres monatlichen Ausgabenlimits verwendet. %@";
+"notification.spend_warning.title" = "Hohe monatliche Ausgaben";
+"notification.spend_warning.message" = "Sie haben %@ Ihres monatlichen Ausgabenlimits verwendet. %@";
+"notification.spend_critical.title" = "Monatliches Ausgabenlimit fast erreicht";
+"notification.spend_critical.message" = "Sie haben %@ Ihres monatlichen Ausgabenlimits verwendet. %@";
+"notification.spend_limit_reached.title" = "Monatliches Ausgabenlimit erreicht";
+"notification.spend_limit_reached.message" = "Sie haben Ihr monatliches Ausgabenlimit erreicht. %@";
 "notification.session_reset.title" = "Sitzung Zurückgesetzt";
 "notification.session_reset.message" = "Ihre Sitzung wurde zurückgesetzt! Sie haben jetzt eine neue 5-Stunden-Sitzung verfügbar.";
 "notification.session_auto_started.title" = "Sitzung Automatisch Gestartet";

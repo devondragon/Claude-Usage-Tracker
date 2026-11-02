@@ -208,6 +208,14 @@
 "notification.session_warning.message" = "Você usou %@ do seu limite de sessão de 5 horas. %@";
 "notification.session_critical.title" = "Uso da Sessão Crítico";
 "notification.session_critical.message" = "Você usou %@ do seu limite de sessão de 5 horas! %@";
+"notification.spend_info.title" = "Gasto mensal";
+"notification.spend_info.message" = "Utilizou %@ do seu limite de gasto mensal. %@";
+"notification.spend_warning.title" = "Gasto mensal elevado";
+"notification.spend_warning.message" = "Utilizou %@ do seu limite de gasto mensal. %@";
+"notification.spend_critical.title" = "Limite de gasto mensal quase esgotado";
+"notification.spend_critical.message" = "Utilizou %@ do seu limite de gasto mensal. %@";
+"notification.spend_limit_reached.title" = "Limite de gasto mensal atingido";
+"notification.spend_limit_reached.message" = "Atingiu o seu limite de gasto mensal. %@";
 "notification.session_reset.title" = "Sessão Reiniciada";
 "notification.session_reset.message" = "Sua sessão foi reiniciada! Você agora tem uma nova sessão de 5 horas disponível.";
 "notification.session_auto_started.title" = "Sessão Iniciada Automaticamente";
