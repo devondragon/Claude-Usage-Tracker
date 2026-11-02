@@ -64,7 +64,10 @@ final class AnthropicUsageProvider: UsageProviderService {
         // Only use system keychain for the active profile — the keychain/credentials file
         // reflects the currently active `claude` CLI session. Using it for a non-active
         // profile would silently return the active profile's stats.
-        if profile.id == ProfileManager.shared.activeProfile?.id,
+        // A pinned profile never falls back to it: its own entry is its only CLI source,
+        // and the default login can be a different account.
+        if profile.customKeychainServiceName == nil,
+           profile.id == ProfileManager.shared.activeProfile?.id,
            let systemCredentials = try? ClaudeCodeSyncService.shared.readSystemCredentials(),
            !ClaudeCodeSyncService.shared.isTokenExpired(systemCredentials),
            let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: systemCredentials) {
@@ -93,6 +96,13 @@ final class AnthropicUsageProvider: UsageProviderService {
     /// `fetchUsageData()`, whose internal `getAuthentication()` chain covers
     /// the active profile plus system-level fallbacks. Keep that exact path.
     func fetchUsageForActiveProfile(_ profile: Profile) async throws -> ClaudeUsage {
-        try await apiService.fetchUsageData()
+        // `fetchUsageData()` falls back to the default Claude Code login, which is wrong for
+        // a profile pinned to a config dir. Pinned profiles without a claude.ai session key
+        // take the per-profile path, which reads the pinned entry and shows the last stored
+        // usage while its token is expired.
+        if profile.customKeychainServiceName != nil, profile.claudeSessionKey == nil {
+            return try await fetchUsage(for: profile)
+        }
+        return try await apiService.fetchUsageData()
     }
 }

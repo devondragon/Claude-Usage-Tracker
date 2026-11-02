@@ -1095,3 +1095,15 @@
 "support.popup_signature" = "a equipa de uma só pessoa por trás do Claude Usage";
 "support.popup_body" = "Grátis, open source, feita por uma só pessoa — sem anúncios nem rastreio. Se já te salvou de queimar um limite de sessão, um café mantém-na viva.";
 "support.popup_days" = "A vigiar os teus limites há %d dias — sempre grátis";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Contas do Claude Code";
+"cc_accounts.subtitle" = "Utilize uma pasta de configuração do Claude Code com sessão já iniciada. A app lê o início de sessão e nunca o altera.";
+"cc_accounts.use" = "Utilizar neste perfil";
+"cc_accounts.linked" = "Associado";
+"cc_accounts.unlink" = "Desassociar";
+"cc_accounts.used_by" = "Em uso por %@";
+"cc_accounts.link_matching" = "Associar perfis correspondentes";
+"cc_accounts.empty" = "Não foram encontradas pastas de configuração do Claude Code com sessão iniciada na sua pasta pessoal. Inicie sessão com claude (ou CLAUDE_CONFIG_DIR=~/.claude-nome claude) e atualize.";
+"cc_accounts.unknown_pin" = "Associado a %@, que não foi encontrado na sua pasta pessoal.";
+"cc_accounts.linked_count" = "%d perfis associados.";

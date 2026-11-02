@@ -154,6 +154,19 @@ struct PopoverContentView: View {
                 ) {
                     onRefresh()
                 }
+            } else if (manager.clickedProfileId.flatMap { id in profileManager.profiles.first { $0.id == id } }
+                        ?? profileManager.activeProfile)?.claudeUsage != nil,
+                      Date().timeIntervalSince(displayUsage.lastUpdated) > 600 {
+                // The refresh ran, but this profile's data is its last stored reading (e.g. a
+                // linked Claude Code login whose token expired and has not been refreshed yet).
+                StatusBannerView(
+                    icon: "clock.fill",
+                    message: String(format: "popover.banner.updated_ago".localized,
+                                    Int(Date().timeIntervalSince(displayUsage.lastUpdated) / 60)),
+                    color: .orange
+                ) {
+                    onRefresh()
+                }
             }
 
             // Viewing usage tag (shown in multi-profile mode)

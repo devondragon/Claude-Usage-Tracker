@@ -1104,3 +1104,15 @@
 "support.popup_signature" = "Claude Usage를 혼자 만드는 1인 팀";
 "support.popup_body" = "무료, 오픈소스, 1인 개발 — 광고도 추적도 없습니다. 세션 한도를 태우는 걸 막아준 적이 있다면, 커피 한 잔이 개발을 이어가게 합니다.";
 "support.popup_days" = "%d일째 당신의 한도를 지키는 중 — 언제나 무료";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Claude Code 계정";
+"cc_accounts.subtitle" = "이미 로그인된 Claude Code 설정 폴더를 사용합니다. 앱은 로그인 정보를 읽기만 하고 변경하지 않습니다.";
+"cc_accounts.use" = "이 프로필에 사용";
+"cc_accounts.linked" = "연결됨";
+"cc_accounts.unlink" = "연결 해제";
+"cc_accounts.used_by" = "%@에서 사용 중";
+"cc_accounts.link_matching" = "일치하는 프로필 연결";
+"cc_accounts.empty" = "홈 폴더에서 로그인된 Claude Code 설정 폴더를 찾을 수 없습니다. claude(또는 CLAUDE_CONFIG_DIR=~/.claude-name claude)로 로그인한 후 새로 고치세요.";
+"cc_accounts.unknown_pin" = "%@에 연결되어 있지만 홈 폴더에서 찾을 수 없습니다.";
+"cc_accounts.linked_count" = "프로필 %d개를 연결했습니다.";

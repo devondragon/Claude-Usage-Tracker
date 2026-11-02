@@ -246,55 +246,5 @@ final class ClaudeCodeSyncServiceLogicTests: XCTestCase {
         )
         XCTAssertNil(service.mergeRefreshedCredentials(into: cliJSON, refreshed: refreshed))
     }
-
-    func testDisplayLabelEmailAndOrg() {
-        let d = ClaudeCodeSyncService.KeychainEntryDescription(
-            serviceName: "Claude Code-credentials-abcd1234",
-            emailAddress: "user@example.com",
-            organizationName: "ExampleOrg",
-            subscriptionType: "max"
-        )
-        XCTAssertEqual(d.displayLabel, "user@example.com — ExampleOrg · abcd1234")
-    }
-
-    func testDisplayLabelEmailOnly() {
-        let d = ClaudeCodeSyncService.KeychainEntryDescription(
-            serviceName: "Claude Code-credentials-abcd1234",
-            emailAddress: "user@example.com",
-            organizationName: nil,
-            subscriptionType: nil
-        )
-        XCTAssertEqual(d.displayLabel, "user@example.com · abcd1234")
-    }
-
-    func testDisplayLabelDefaultShorthand() {
-        let d = ClaudeCodeSyncService.KeychainEntryDescription(
-            serviceName: "Claude Code-credentials",
-            emailAddress: "user@example.com",
-            organizationName: nil,
-            subscriptionType: nil
-        )
-        XCTAssertEqual(d.displayLabel, "user@example.com · default")
-    }
-
-    func testDisplayLabelSubscriptionFallback() {
-        let d = ClaudeCodeSyncService.KeychainEntryDescription(
-            serviceName: "Claude Code-credentials-abcd1234",
-            emailAddress: nil,
-            organizationName: nil,
-            subscriptionType: "team"
-        )
-        XCTAssertEqual(d.displayLabel, "abcd1234 — team")
-    }
-
-    func testDisplayLabelRawSvcFallback() {
-        let d = ClaudeCodeSyncService.KeychainEntryDescription(
-            serviceName: "Claude Code-credentials-abcd1234",
-            emailAddress: nil,
-            organizationName: nil,
-            subscriptionType: nil
-        )
-        XCTAssertEqual(d.displayLabel, "Claude Code-credentials-abcd1234")
-    }
 }
 

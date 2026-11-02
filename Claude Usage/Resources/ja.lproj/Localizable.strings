@@ -1095,3 +1095,15 @@
 "support.popup_signature" = "Claude Usage を一人で作っています";
 "support.popup_body" = "無料・オープンソース・個人開発。広告もトラッキングもありません。セッション上限の浪費を防いだことがあるなら、一杯のコーヒーが開発を支えます。";
 "support.popup_days" = "あなたの上限を見守って %d 日 — ずっと無料";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Claude Code アカウント";
+"cc_accounts.subtitle" = "ログイン済みの Claude Code 設定フォルダを使用します。アプリはログイン情報を読み取るだけで、変更はしません。";
+"cc_accounts.use" = "このプロファイルで使用";
+"cc_accounts.linked" = "リンク済み";
+"cc_accounts.unlink" = "リンク解除";
+"cc_accounts.used_by" = "%@ が使用中";
+"cc_accounts.link_matching" = "一致するプロファイルをリンク";
+"cc_accounts.empty" = "ホームフォルダにログイン済みの Claude Code 設定フォルダが見つかりません。claude（または CLAUDE_CONFIG_DIR=~/.claude-name claude）でログインしてから更新してください。";
+"cc_accounts.unknown_pin" = "%@ にリンクされていますが、ホームフォルダに見つかりません。";
+"cc_accounts.linked_count" = "%d 件のプロファイルをリンクしました。";

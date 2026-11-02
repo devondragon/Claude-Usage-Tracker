@@ -357,143 +357,6 @@ class ClaudeCodeSyncService {
         return result.exitCode == 0
     }
 
-    /// Human-readable summary of a keychain entry, used to label the picker so the user
-    /// doesn't have to memorize raw hashes.
-    struct KeychainEntryDescription {
-        let serviceName: String
-        let emailAddress: String?
-        let organizationName: String?
-        let subscriptionType: String?
-
-        /// Picker label combining the most identifying info available with the
-        /// keychain svc shorthand so two similarly-described accounts stay distinct.
-        var displayLabel: String {
-            let svcShort: String
-            if serviceName == "Claude Code-credentials" {
-                svcShort = "default"
-            } else if serviceName.hasPrefix("Claude Code-credentials-") {
-                svcShort = String(serviceName.dropFirst("Claude Code-credentials-".count))
-            } else {
-                svcShort = serviceName
-            }
-
-            if let email = emailAddress {
-                if let org = organizationName, !org.isEmpty {
-                    return "\(email) — \(org) · \(svcShort)"
-                }
-                return "\(email) · \(svcShort)"
-            }
-            if let sub = subscriptionType, !sub.isEmpty {
-                return "\(svcShort) — \(sub)"
-            }
-            return serviceName
-        }
-    }
-
-    /// Builds a `KeychainEntryDescription` for the given service name. Tries to enrich
-    /// the raw hash with human-readable info by:
-    /// 1. Reading the keychain payload for `subscriptionType` + `organizationUuid`
-    /// 2. Matching that organizationUuid against any of `knownProfiles`' `oauthAccountJSON`
-    ///    to recover `emailAddress` + `organizationName`
-    /// 3. If still unknown, consulting `accountMap` (built once via
-    ///    `discoverAccountLabels()`) which derives hashes from local `.claude*` dirs.
-    /// Returns a description that always at least falls back to a sensible svc shorthand.
-    func describeKeychainEntry(
-        serviceName: String,
-        knownProfiles: [Profile],
-        accountMap: [String: (email: String, organizationName: String?)] = [:]
-    ) -> KeychainEntryDescription {
-        var subscription: String?
-        var orgUuid: String?
-
-        if let payload = readKeychainCredentials(serviceName: serviceName),
-           let data = payload.data(using: .utf8),
-           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            let oauth = (root["claudeAiOauth"] as? [String: Any]) ?? [:]
-            subscription = oauth["subscriptionType"] as? String
-            orgUuid = (root["organizationUuid"] as? String) ?? (oauth["organizationUuid"] as? String)
-        }
-
-        var email: String?
-        var orgName: String?
-        if let orgUuid = orgUuid {
-            for profile in knownProfiles {
-                guard let json = profile.oauthAccountJSON,
-                      let d = json.data(using: .utf8),
-                      let r = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-                      (r["organizationUuid"] as? String) == orgUuid else {
-                    continue
-                }
-                email = r["emailAddress"] as? String
-                orgName = r["organizationName"] as? String
-                break
-            }
-        }
-
-        // Fall back to the path-derived account map (covers entries whose keychain
-        // payload doesn't carry an organizationUuid — newer Claude Code schemas).
-        if email == nil, let mapped = accountMap[serviceName] {
-            email = mapped.email
-            orgName = mapped.organizationName
-        }
-
-        return KeychainEntryDescription(
-            serviceName: serviceName,
-            emailAddress: email,
-            organizationName: orgName,
-            subscriptionType: subscription
-        )
-    }
-
-    /// Discovers a `keychain-svc → (email, org)` mapping by walking the user's home
-    /// directory for `.claude` and `.claude-*` config dirs, reading each one's
-    /// `.claude.json` `oauthAccount`, and computing the keychain hash Claude Code
-    /// derives from each directory path.
-    ///
-    /// Reverse-engineered fact (validated against live entries): for any non-default
-    /// CLAUDE_CONFIG_DIR, Claude Code stores credentials under
-    /// `Claude Code-credentials-<SHA256(absolute path)[:8]>`. The default `~/.claude`
-    /// maps to the unsuffixed `Claude Code-credentials` entry.
-    ///
-    /// This is the best path-independent way to label a keychain entry when its
-    /// payload doesn't include an organizationUuid (no token data is ever read here —
-    /// only `.claude.json` `oauthAccount` metadata, which is plain user identity info).
-    func discoverAccountLabels() -> [String: (email: String, organizationName: String?)] {
-        var labels: [String: (email: String, organizationName: String?)] = [:]
-        let fm = FileManager.default
-        let homeURL = fm.homeDirectoryForCurrentUser
-        let homePath = homeURL.path
-
-        var candidates: [String] = ["\(homePath)/.claude"]
-        if let entries = try? fm.contentsOfDirectory(atPath: homePath) {
-            for name in entries where name.hasPrefix(".claude-") {
-                candidates.append("\(homePath)/\(name)")
-            }
-        }
-
-        for dir in candidates {
-            let configFile = "\(dir)/.claude.json"
-            guard fm.fileExists(atPath: configFile),
-                  let data = try? Data(contentsOf: URL(fileURLWithPath: configFile)),
-                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let oa = root["oauthAccount"] as? [String: Any],
-                  let email = oa["emailAddress"] as? String else {
-                continue
-            }
-            let orgName = oa["organizationName"] as? String
-
-            let svc: String
-            if dir == "\(homePath)/.claude" {
-                svc = "Claude Code-credentials"
-            } else {
-                let hash = sha256HexPrefix(dir, length: 8)
-                svc = "Claude Code-credentials-\(hash)"
-            }
-            labels[svc] = (email, orgName)
-        }
-        return labels
-    }
-
     // internal (not private) so unit tests can pin the live-validated hash algorithm.
     func sha256HexPrefix(_ s: String, length: Int) -> String {
         let digest = SHA256.hash(data: Data(s.utf8))
@@ -721,6 +584,138 @@ class ClaudeCodeSyncService {
         return nil
     }
 
+    // MARK: - Claude Code Config Dir Discovery
+
+    /// A Claude Code config dir that is logged in: its `.claude.json` names an account and
+    /// the keychain entry Claude Code derives from its path exists.
+    struct ConfigDirAccount: Equatable, Identifiable {
+        let directoryPath: String
+        let serviceName: String
+        let emailAddress: String
+        let organizationName: String?
+        let accountUuid: String?
+        /// The serialized `oauthAccount` object, stored on a linked profile.
+        let oauthAccountJSON: String
+
+        var id: String { serviceName }
+
+        /// Last path component, e.g. `.claude-tribe`.
+        var directoryName: String { (directoryPath as NSString).lastPathComponent }
+
+        /// `tribe` for `.claude-tribe`; nil for the default `.claude`.
+        var slug: String? {
+            directoryName.hasPrefix(".claude-") ? String(directoryName.dropFirst(".claude-".count)) : nil
+        }
+    }
+
+    /// Finds the logged-in Claude Code config dirs under `homePath`: `.claude` (whose
+    /// `oauthAccount` lives in `~/.claude.json`) and every `.claude-*` dir (whose
+    /// `oauthAccount` lives in `<dir>/.claude.json`). A dir is kept only when its keychain
+    /// entry is in `existingServices`, which defaults to one attribute-only keychain query,
+    /// so no secret is read and no subprocess runs per entry.
+    func discoverConfigDirAccounts(
+        homePath: String = FileManager.default.homeDirectoryForCurrentUser.path,
+        existingServices: Set<String>? = nil
+    ) -> [ConfigDirAccount] {
+        let services = existingServices ?? Set(listClaudeCodeKeychainServices())
+        let fm = FileManager.default
+
+        var candidates: [(dir: String, configFile: URL, service: String)] = []
+        let defaultDir = "\(homePath)/.claude"
+        let defaultConfig = [URL(fileURLWithPath: "\(homePath)/.claude.json"),
+                             URL(fileURLWithPath: "\(defaultDir)/.claude.json")]
+            .first { fm.fileExists(atPath: $0.path) }
+        if let defaultConfig {
+            candidates.append((defaultDir, defaultConfig, Self.legacyServiceName))
+        }
+        let names = (try? fm.contentsOfDirectory(atPath: homePath)) ?? []
+        for name in names.sorted() where name.hasPrefix(".claude-") {
+            let dir = "\(homePath)/\(name)"
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else { continue }
+            candidates.append((dir, URL(fileURLWithPath: dir).appendingPathComponent(".claude.json"),
+                               "\(Self.legacyServiceName)-\(sha256HexPrefix(dir, length: 8))"))
+        }
+
+        return candidates.compactMap { candidate in
+            guard services.contains(candidate.service),
+                  let json = readOAuthAccount(from: candidate.configFile),
+                  let data = json.data(using: .utf8),
+                  let account = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let email = account["emailAddress"] as? String, !email.isEmpty else {
+                return nil
+            }
+            return ConfigDirAccount(
+                directoryPath: candidate.dir,
+                serviceName: candidate.service,
+                emailAddress: email,
+                organizationName: account["organizationName"] as? String,
+                accountUuid: account["accountUuid"] as? String,
+                oauthAccountJSON: json
+            )
+        }
+    }
+
+    /// Pins `profileId` to `account`'s keychain entry, stores its `oauthAccount`, and copies
+    /// the entry's current token into the profile so the first refresh has something to use.
+    func linkProfile(_ profileId: UUID, to account: ConfigDirAccount) {
+        var profiles = ProfileStore.shared.loadProfiles()
+        guard let index = profiles.firstIndex(where: { $0.id == profileId }) else { return }
+        profiles[index].customKeychainServiceName = account.serviceName
+        profiles[index].oauthAccountJSON = account.oauthAccountJSON
+        profiles[index].hasCliAccount = true
+        if let json = readKeychainCredentials(serviceName: account.serviceName) {
+            profiles[index].cliCredentialsJSON = json
+            profiles[index].cliAccountSyncedAt = Date()
+        }
+        ProfileStore.shared.saveProfiles(profiles)
+        LoggingService.shared.log("Linked profile '\(profiles[index].name)' to \(account.directoryName) (\(account.serviceName))")
+    }
+
+    /// Removes the pin. The copied token stays on the profile until it expires or is removed.
+    func unlinkProfile(_ profileId: UUID) {
+        var profiles = ProfileStore.shared.loadProfiles()
+        guard let index = profiles.firstIndex(where: { $0.id == profileId }) else { return }
+        profiles[index].customKeychainServiceName = nil
+        ProfileStore.shared.saveProfiles(profiles)
+        LoggingService.shared.log("Unlinked profile '\(profiles[index].name)' from its Claude Code config dir")
+    }
+
+    /// For each unlinked profile, the one account it matches: by the email in its stored
+    /// `oauthAccount`, else by profile name equal to the dir slug (case-insensitive). A
+    /// profile that matches several dirs, or a dir already linked, is skipped.
+    static func matchProfiles(
+        _ profiles: [Profile],
+        to accounts: [ConfigDirAccount]
+    ) -> [(profileId: UUID, account: ConfigDirAccount)] {
+        let linked = Set(profiles.compactMap(\.customKeychainServiceName))
+        var claimed = linked
+        var result: [(UUID, ConfigDirAccount)] = []
+        for profile in profiles where profile.customKeychainServiceName == nil && profile.provider == .anthropic {
+            let available = accounts.filter { !claimed.contains($0.serviceName) }
+            var matches: [ConfigDirAccount] = []
+            if let email = Self.email(fromOAuthAccountJSON: profile.oauthAccountJSON) {
+                matches = available.filter { $0.emailAddress.caseInsensitiveCompare(email) == .orderedSame }
+            }
+            if matches.isEmpty {
+                matches = available.filter { $0.slug?.caseInsensitiveCompare(profile.name) == .orderedSame }
+            }
+            guard matches.count == 1, let match = matches.first else { continue }
+            claimed.insert(match.serviceName)
+            result.append((profile.id, match))
+        }
+        return result
+    }
+
+    private static func email(fromOAuthAccountJSON json: String?) -> String? {
+        guard let data = json?.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = obj["emailAddress"] as? String, !email.isEmpty else {
+            return nil
+        }
+        return email
+    }
+
     private func readOAuthAccount(from url: URL) -> String? {
         guard let data = try? Data(contentsOf: url),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -857,10 +852,12 @@ class ClaudeCodeSyncService {
             throw ClaudeCodeError.noProfileCredentials
         }
 
-        // A pinned profile belongs to its own Claude Code config dir, which already
-        // reads its own keychain entry. Writing its token into the default entry and
-        // `~/.claude.json` would log the default `claude` into this account (#355).
-        if let pinned = pinnedConfigDirService(of: profile) {
+        // A pinned profile reads its Claude Code config dir's entry and never writes to
+        // a CLI-owned login. Writing a non-default pin's token into the default entry and
+        // `~/.claude.json` would log the default `claude` into that account (#355), and
+        // rewriting the default entry for a default pin can overwrite a token Claude Code
+        // just rotated.
+        if let pinned = profile.customKeychainServiceName {
             LoggingService.shared.log("Profile '\(profile.name)' is pinned to \(pinned); leaving the default Claude Code login untouched")
             return
         }
@@ -993,27 +990,6 @@ class ClaudeCodeSyncService {
         return value.isEmpty ? nil : value
     }
 
-    /// Writes a credentials JSON string into a specific keychain item by explicit service name.
-    /// Mirrors `writeSystemCredentials` but does not consult `resolveServiceName()` — callers
-    /// supply the exact target (e.g. a hash-suffix entry tied to one Claude Code account) so
-    /// rotated tokens from auto-refresh can be written back to the same place Claude Code reads.
-    func writeKeychainCredentials(serviceName: String, jsonData: String) throws {
-        // `-U` already updates an existing entry in place, so the previous delete-then-add
-        // pattern is unnecessary and was observed to leave the entry in a partially-overwritten
-        // (invalid-JSON) state under concurrent refreshes. Rely on a single atomic `-U` add.
-        guard let result = runSecurityCommand(arguments: [
-            "add-generic-password", "-s", serviceName, "-a", NSUserName(), "-w", jsonData, "-U"
-        ]) else {
-            throw ClaudeCodeError.keychainWriteFailed(status: -1)
-        }
-        if result.timedOut {
-            throw ClaudeCodeError.keychainWriteFailed(status: -1)
-        }
-        if result.exitCode != 0 {
-            throw ClaudeCodeError.keychainWriteFailed(status: OSStatus(result.exitCode))
-        }
-    }
-
     // internal so unit tests can construct fixtures to feed mergeRefreshedCredentials.
     struct OAuthRefreshResponse: Decodable {
         let access_token: String
@@ -1060,13 +1036,10 @@ class ClaudeCodeSyncService {
     ///
     /// Source-of-truth selection:
     /// - If `profile.customKeychainServiceName` is set, the Tracker reads the latest tokens
-    ///   directly from that keychain entry. Claude Code rotates tokens into the same entry
-    ///   during normal CLI use, so the read is usually already fresh — no network call needed.
-    /// - Otherwise, falls back to `profile.cliCredentialsJSON` (legacy behavior).
-    ///
-    /// On a successful refresh, the new credentials are written back to BOTH the profile's
-    /// cached JSON AND (when applicable) the custom keychain entry, so Claude Code and the
-    /// Tracker stay in sync.
+    ///   directly from that keychain entry and never refreshes them: Claude Code rotates
+    ///   tokens into the same entry during normal CLI use. An expired token returns nil.
+    /// - Otherwise, falls back to `profile.cliCredentialsJSON` (legacy behavior), and a
+    ///   successful refresh is saved to the profile.
     ///
     /// `onRefreshRejected` is called when the token endpoint answers `invalid_grant`, i.e. the
     /// saved refresh token is definitively dead. Other failures (offline, timeout, 5xx, 429)
@@ -1136,6 +1109,14 @@ class ClaudeCodeSyncService {
 
         var initialJSON: String?
         if let svc = customSvc {
+            // The entry must still hold this profile's account. The default entry in
+            // particular holds whichever account was last switched in.
+            let entryIdentity = accountIdentity(fromOAuthAccountJSON: readOAuthAccount(forKeychainService: svc))
+            let profileIdentity = accountIdentity(fromOAuthAccountJSON: profile.oauthAccountJSON)
+            if let entryIdentity, let profileIdentity, entryIdentity != profileIdentity {
+                LoggingService.shared.log("ensureFreshCredentials: '\(svc)' is logged into a different account than '\(profile.name)'; not using it")
+                return nil
+            }
             initialJSON = readKeychainCredentials(serviceName: svc)
             if initialJSON == nil {
                 LoggingService.shared.logError("ensureFreshCredentials: profile '\(profile.name)' pins keychain '\(svc)' but it was not found")
@@ -1165,15 +1146,22 @@ class ClaudeCodeSyncService {
             return cliJSON
         }
 
-        // At this point the profile is EITHER pinned to a keychain entry (customSvc != nil)
-        // OR non-active & unpinned — the active/unpinned case already returned above via the
+        // Pinned profiles are read-only: the entry belongs to a Claude Code config dir, and
+        // Claude Code refreshes it on its next use. Refreshing here races that refresh, and
+        // whichever side loses spends a used refresh token and is logged out. An expired
+        // token makes callers show the last stored usage instead.
+        if let svc = customSvc {
+            LoggingService.shared.log("ensureFreshCredentials: token in '\(svc)' for '\(profile.name)' has expired; waiting for Claude Code to refresh it")
+            return nil
+        }
+
+        // At this point the profile is non-active & unpinned — the active/unpinned case already returned above via the
         // system-keychain branch. For a non-active, unpinned profile the refresh_token lineage
         // is owned by an external tool (e.g. the `cux` account switcher, or Claude Code's own
         // keychain rotation). Refreshing here would consume that refresh token out from under
         // the other tool, forcing its next use to fail with invalid_grant ("Please run /login").
         // Never rotate a lineage we don't own: return the cached snapshot (even if expired) and
-        // let the display fall back to last-known usage. Pinned profiles are safe to refresh
-        // because we write the rotated tokens back to the shared keychain entry below.
+        // let the display fall back to last-known usage.
         // Exception: an *explicit* activation (allowRotation) must refresh even here.
         // When the user switches to this profile, activateProfile() calls us before the
         // profile becomes the active one, so it lands in this non-active branch. Skipping
@@ -1182,7 +1170,7 @@ class ClaudeCodeSyncService {
         // switch — applyProfileCredentials writes the fresh token straight to the system
         // keychain that Claude Code / cux read. Only *background* monitoring passes
         // allowRotation=false to avoid churning idle accounts.
-        if customSvc == nil && !allowRotation {
+        if !allowRotation {
             LoggingService.shared.log("ensureFreshCredentials: '\(profile.name)' is non-active & unpinned; skipping refresh to avoid rotating an externally-owned token")
             return cliJSON
         }
@@ -1192,8 +1180,7 @@ class ClaudeCodeSyncService {
             return nil
         }
 
-        let sourceTag = customSvc.map { "keychain:\($0)" } ?? "plist"
-        LoggingService.shared.log("ensureFreshCredentials: refreshing OAuth token for profile '\(profile.name)' (source=\(sourceTag))")
+        LoggingService.shared.log("ensureFreshCredentials: refreshing OAuth token for profile '\(profile.name)' (source=plist)")
 
         let refreshed: OAuthRefreshResponse
         do {
@@ -1217,16 +1204,7 @@ class ClaudeCodeSyncService {
             return nil
         }
 
-        // Write back: always update the profile cache; if we sourced from a custom keychain
-        // entry, also persist the rotated tokens there so Claude Code's next read picks them up.
         persistProfileCredentialsJSON(profileId: profileId, json: updatedJSON)
-        if let svc = customSvc {
-            do {
-                try writeKeychainCredentials(serviceName: svc, jsonData: updatedJSON)
-            } catch {
-                LoggingService.shared.logError("ensureFreshCredentials: refreshed but failed to write back to keychain '\(svc)'", error: error)
-            }
-        }
 
         LoggingService.shared.log("✓ ensureFreshCredentials: refreshed and saved for profile '\(profile.name)'")
         return updatedJSON
