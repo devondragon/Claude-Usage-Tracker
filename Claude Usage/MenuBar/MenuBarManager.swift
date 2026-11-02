@@ -1456,13 +1456,6 @@ class MenuBarManager: NSObject, ObservableObject {
 
     // MARK: - Reset Detection for History Recording
 
-    /// Normalizes a date to minute precision for comparison (ignores seconds)
-    private func normalizeToMinute(_ date: Date) -> Date {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        return calendar.date(from: components) ?? date
-    }
-
     /// Checks if a session reset occurred and records a snapshot if so
     private func checkAndRecordSessionReset(
         profileId: UUID,
@@ -1470,7 +1463,7 @@ class MenuBarManager: NSObject, ObservableObject {
         newUsage: ClaudeUsage
     ) {
         let lastKnown = lastKnownSessionResetTime[profileId]
-        let newResetTime = normalizeToMinute(newUsage.sessionResetTime)
+        let newResetTime = newUsage.sessionResetTime
 
         // First time seeing this profile - just record the reset time
         if lastKnown == nil {
@@ -1478,21 +1471,18 @@ class MenuBarManager: NSObject, ObservableObject {
             return
         }
 
-        // Normalize the last known time for comparison
-        let normalizedLastKnown = normalizeToMinute(lastKnown!)
-
-        // Check if reset time changed (indicates a reset occurred)
-        // Use != instead of > to handle clock changes and backward time jumps
-        if newResetTime != normalizedLastKnown {
+        // Check if reset time moved beyond API jitter (indicates a reset occurred).
+        // Compare in both directions to handle clock changes and backward time jumps.
+        if ResetDetection.isReset(from: lastKnown!, to: newResetTime) {
             // Reset detected! Record snapshot of the previous usage
-            LoggingService.shared.log("History: Session reset detected for profile \(profileId.uuidString.prefix(8)). Old: \(normalizedLastKnown), New: \(newResetTime)")
+            LoggingService.shared.log("History: Session reset detected for profile \(profileId.uuidString.prefix(8)). Old: \(lastKnown!), New: \(newResetTime)")
             if let prevUsage = previousUsage {
                 let provider = profileManager.profiles.first(where: { $0.id == profileId })?.provider ?? .anthropic
                 Task { @MainActor in
                     UsageHistoryService.shared.recordSessionReset(
                         for: profileId,
                         previousUsage: prevUsage,
-                        resetTime: prevUsage.sessionResetTime,  // Use original reset time, not normalized
+                        resetTime: prevUsage.sessionResetTime,
                         provider: provider
                     )
                 }
@@ -1515,7 +1505,7 @@ class MenuBarManager: NSObject, ObservableObject {
         newUsage: ClaudeUsage
     ) {
         let lastKnown = lastKnownWeeklyResetTime[profileId]
-        let newResetTime = normalizeToMinute(newUsage.weeklyResetTime)
+        let newResetTime = newUsage.weeklyResetTime
 
         // First time seeing this profile - just record the reset time
         if lastKnown == nil {
@@ -1524,21 +1514,18 @@ class MenuBarManager: NSObject, ObservableObject {
             return
         }
 
-        // Normalize the last known time for comparison
-        let normalizedLastKnown = normalizeToMinute(lastKnown!)
-
-        // Check if reset time changed (indicates a reset occurred)
-        // Use != instead of > to handle clock changes and backward time jumps
-        if newResetTime != normalizedLastKnown {
+        // Check if reset time moved beyond API jitter (indicates a reset occurred).
+        // Compare in both directions to handle clock changes and backward time jumps.
+        if ResetDetection.isReset(from: lastKnown!, to: newResetTime) {
             // Reset detected! Record snapshot of the previous usage
-            LoggingService.shared.log("History: Weekly reset detected for profile \(profileId.uuidString.prefix(8)). Old: \(normalizedLastKnown), New: \(newResetTime)")
+            LoggingService.shared.log("History: Weekly reset detected for profile \(profileId.uuidString.prefix(8)). Old: \(lastKnown!), New: \(newResetTime)")
             if let prevUsage = previousUsage {
                 let provider = profileManager.profiles.first(where: { $0.id == profileId })?.provider ?? .anthropic
                 Task { @MainActor in
                     UsageHistoryService.shared.recordWeeklyReset(
                         for: profileId,
                         previousUsage: prevUsage,
-                        resetTime: prevUsage.weeklyResetTime,  // Use original reset time, not normalized
+                        resetTime: prevUsage.weeklyResetTime,
                         provider: provider
                     )
                 }
@@ -1561,7 +1548,7 @@ class MenuBarManager: NSObject, ObservableObject {
         newUsage: APIUsage
     ) {
         let lastKnown = lastKnownAPIResetTime[profileId]
-        let newResetTime = normalizeToMinute(newUsage.resetsAt)
+        let newResetTime = newUsage.resetsAt
 
         // First time seeing this profile - just record the reset time
         if lastKnown == nil {
@@ -1570,20 +1557,17 @@ class MenuBarManager: NSObject, ObservableObject {
             return
         }
 
-        // Normalize the last known time for comparison
-        let normalizedLastKnown = normalizeToMinute(lastKnown!)
-
-        // Check if reset time changed (indicates a reset occurred)
-        // Use != instead of > to handle clock changes and backward time jumps
-        if newResetTime != normalizedLastKnown {
+        // Check if reset time moved beyond API jitter (indicates a reset occurred).
+        // Compare in both directions to handle clock changes and backward time jumps.
+        if ResetDetection.isReset(from: lastKnown!, to: newResetTime) {
             // Reset detected! Record snapshot of the previous usage
-            LoggingService.shared.log("History: Billing cycle reset detected for profile \(profileId.uuidString.prefix(8)). Old: \(normalizedLastKnown), New: \(newResetTime)")
+            LoggingService.shared.log("History: Billing cycle reset detected for profile \(profileId.uuidString.prefix(8)). Old: \(lastKnown!), New: \(newResetTime)")
             if let prevUsage = previousUsage {
                 Task { @MainActor in
                     UsageHistoryService.shared.recordBillingCycleReset(
                         for: profileId,
                         previousUsage: prevUsage,
-                        resetTime: prevUsage.resetsAt  // Use original reset time, not normalized
+                        resetTime: prevUsage.resetsAt
                     )
                 }
             }
