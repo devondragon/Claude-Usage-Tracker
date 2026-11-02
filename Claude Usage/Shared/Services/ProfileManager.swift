@@ -265,6 +265,12 @@ class ProfileManager: ObservableObject {
                 _ = refreshed
                 // Reload so applyProfileCredentials picks up the refreshed token.
                 profiles = profileStore.loadProfiles()
+            } else if refreshRejected, let pinned = updatedProfile.customKeychainServiceName {
+                // #355: a pinned profile never writes to the default login, so a dead
+                // token in its own entry is no reason to cancel the switch. That config
+                // dir needs its own /login.
+                LoggingService.shared.logError("Saved CLI login for '\(updatedProfile.name)' in \(pinned) could not be refreshed; run /login in that Claude Code config dir")
+                applySnapshot = false
             } else if refreshRejected {
                 // #331: the token endpoint answered invalid_grant (the saved refresh token was
                 // consumed or has expired), so the snapshot is dead. Writing it would replace the
