@@ -47,6 +47,18 @@ final class ClaudeCLIPingTests: XCTestCase {
         XCTAssertEqual(resolve(profile: profile, defaultAccount: system), .success(.defaultLogin))
     }
 
+    func testUnlinkedMatchesByEmailWhenOnlyOneSideHasUuid() {
+        let profile = #"{"accountUuid":"uuid-a","emailAddress":"A@Example.com"}"#
+        let system = #"{"emailAddress":"a@example.com"}"#
+        XCTAssertEqual(resolve(profile: profile, defaultAccount: system), .success(.defaultLogin))
+    }
+
+    func testUnlinkedDifferentUuidsMismatchEvenWithSameEmail() {
+        let profile = #"{"accountUuid":"uuid-a","emailAddress":"a@example.com"}"#
+        let system = #"{"accountUuid":"uuid-other","emailAddress":"a@example.com"}"#
+        XCTAssertEqual(resolve(profile: profile, defaultAccount: system), .failure(.accountMismatch))
+    }
+
     func testUnlinkedMismatchIsSkipped() {
         XCTAssertEqual(resolve(profile: accountA, defaultAccount: accountB), .failure(.accountMismatch))
         XCTAssertEqual(resolve(profile: nil, defaultAccount: accountB), .failure(.accountMismatch))
@@ -133,50 +145,116 @@ final class ClaudeCLIPingTests: XCTestCase {
 
     // MARK: - Binary locator
 
-    func testLocatorPicksFirstExecutableCandidate() {
+    func testLocatorPicksFirstExecutableCandidate() async {
         var shellCalls = 0
         var locator = ClaudeBinaryLocator(
             candidates: ["/a/claude", "/b/claude", "/c/claude"],
             isExecutable: { $0 == "/b/claude" || $0 == "/c/claude" },
             shellLookup: { shellCalls += 1; return "/shell/claude" }
         )
-        XCTAssertEqual(locator.locate(), "/b/claude")
+        let found = await locator.locate()
+        XCTAssertEqual(found, "/b/claude")
         XCTAssertEqual(shellCalls, 0)
     }
 
-    func testLocatorFallsBackToShell() {
+    func testLocatorFallsBackToShell() async {
         var locator = ClaudeBinaryLocator(
             candidates: ["/a/claude"],
             isExecutable: { $0 == "/shell/claude" },
             shellLookup: { "/shell/claude" }
         )
-        XCTAssertEqual(locator.locate(), "/shell/claude")
+        let found = await locator.locate()
+        XCTAssertEqual(found, "/shell/claude")
     }
 
-    func testLocatorCachesResult() {
+    func testLocatorCachesResult() async {
         var shellCalls = 0
         var locator = ClaudeBinaryLocator(
             candidates: [],
             isExecutable: { _ in true },
             shellLookup: { shellCalls += 1; return "/shell/claude" }
         )
-        XCTAssertEqual(locator.locate(), "/shell/claude")
-        XCTAssertEqual(locator.locate(), "/shell/claude")
+        let first = await locator.locate()
+        let second = await locator.locate()
+        XCTAssertEqual(first, "/shell/claude")
+        XCTAssertEqual(second, "/shell/claude")
         XCTAssertEqual(shellCalls, 1)
     }
 
-    func testLocatorRetriesAfterInvalidate() {
+    func testLocatorRetriesAfterInvalidate() async {
         var shellCalls = 0
-        var answer: String? = nil
+        var answer = "/path/a/claude"
         var locator = ClaudeBinaryLocator(
             candidates: [],
             isExecutable: { _ in true },
             shellLookup: { shellCalls += 1; return answer }
         )
-        XCTAssertNil(locator.locate())
-        answer = "/shell/claude"
+        let first = await locator.locate()
+        XCTAssertEqual(first, "/path/a/claude")
+
+        answer = "/path/b/claude"
+        let cached = await locator.locate()
+        XCTAssertEqual(cached, "/path/a/claude", "without invalidate() the cached hit is kept")
+        XCTAssertEqual(shellCalls, 1)
+
         locator.invalidate()
-        XCTAssertEqual(locator.locate(), "/shell/claude")
+        let relocated = await locator.locate()
+        XCTAssertEqual(relocated, "/path/b/claude")
+        XCTAssertEqual(shellCalls, 2)
+    }
+
+    func testLocatorWaitsTenMinutesAfterAMissBeforeAskingTheShellAgain() async {
+        var shellCalls = 0
+        var clock = Date(timeIntervalSince1970: 1_800_000_000)
+        var locator = ClaudeBinaryLocator(
+            candidates: ["/a/claude"],
+            isExecutable: { _ in false },
+            shellLookup: { shellCalls += 1; return nil },
+            now: { clock }
+        )
+        let miss = await locator.locate()
+        XCTAssertNil(miss)
+        XCTAssertEqual(shellCalls, 1)
+
+        clock = clock.addingTimeInterval(9 * 60)
+        let withinWindow = await locator.locate()
+        XCTAssertNil(withinWindow)
+        XCTAssertEqual(shellCalls, 1)
+
+        clock = clock.addingTimeInterval(2 * 60)
+        let afterWindow = await locator.locate()
+        XCTAssertNil(afterWindow)
+        XCTAssertEqual(shellCalls, 2)
+    }
+
+    func testLocatorStillChecksInstallPathsDuringMissWindow() async {
+        var installed = false
+        var shellCalls = 0
+        var locator = ClaudeBinaryLocator(
+            candidates: ["/a/claude"],
+            isExecutable: { _ in installed },
+            shellLookup: { shellCalls += 1; return nil },
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+        let miss = await locator.locate()
+        XCTAssertNil(miss)
+        installed = true
+        let found = await locator.locate()
+        XCTAssertEqual(found, "/a/claude")
+        XCTAssertEqual(shellCalls, 1)
+    }
+
+    func testInvalidateClearsTheMissWindow() async {
+        var shellCalls = 0
+        var locator = ClaudeBinaryLocator(
+            candidates: [],
+            isExecutable: { _ in false },
+            shellLookup: { shellCalls += 1; return nil },
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+        _ = await locator.locate()
+        locator.invalidate()
+        _ = await locator.locate()
         XCTAssertEqual(shellCalls, 2)
     }
 

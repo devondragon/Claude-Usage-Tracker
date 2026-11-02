@@ -52,23 +52,35 @@ nonisolated enum ClaudeCLIPing {
         guard hasCliCredentials else {
             return .failure(.noClaudeCodeLogin)
         }
-        guard let profileIdentity = accountIdentity(profileAccountJSON),
-              let defaultIdentity = accountIdentity(defaultAccountJSON),
-              profileIdentity == defaultIdentity else {
+        guard sameAccount(profileAccountJSON, defaultAccountJSON) else {
             return .failure(.accountMismatch)
         }
         return .success(.defaultLogin)
     }
 
-    /// `accountUuid` of an `oauthAccount` JSON object, falling back to `emailAddress`.
-    private static func accountIdentity(_ json: String?) -> String? {
+    /// Whether two `oauthAccount` JSON objects name the same account: by
+    /// `accountUuid` when both have one, else by `emailAddress` (case-insensitive)
+    /// when both have one. Anything less is treated as a mismatch.
+    private static func sameAccount(_ lhs: String?, _ rhs: String?) -> Bool {
+        let a = accountFields(lhs)
+        let b = accountFields(rhs)
+        if let uuidA = a.uuid, let uuidB = b.uuid {
+            return uuidA == uuidB
+        }
+        if let emailA = a.email, let emailB = b.email {
+            return emailA.caseInsensitiveCompare(emailB) == .orderedSame
+        }
+        return false
+    }
+
+    private static func accountFields(_ json: String?) -> (uuid: String?, email: String?) {
         guard let data = json?.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
+            return (nil, nil)
         }
-        if let uuid = obj["accountUuid"] as? String, !uuid.isEmpty { return uuid }
-        if let email = obj["emailAddress"] as? String, !email.isEmpty { return email }
-        return nil
+        let uuid = (obj["accountUuid"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let email = (obj["emailAddress"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        return (uuid, email)
     }
 
     // MARK: - Command
@@ -138,9 +150,15 @@ nonisolated enum ClaudeCLIPing {
 // MARK: - Binary Locator
 
 /// Finds the `claude` executable. Known install paths are checked first, then a
-/// login shell's `command -v claude`. A found path is cached until `invalidate()`;
-/// a miss is not cached, so a later install is picked up on the next check.
-nonisolated struct ClaudeBinaryLocator {
+/// login shell's `command -v claude`. A found path is cached until `invalidate()`.
+/// After a miss the shell lookup is not repeated for `missRetryInterval`, so a Mac
+/// without `claude` does not start a login shell on every check; the install paths
+/// are still checked each time.
+///
+/// Main-actor isolated (the app default) so a service can keep it in a stored
+/// property and call the mutating `locate()` on it. The live shell lookup hops off
+/// the main actor itself.
+struct ClaudeBinaryLocator {
 
     static let defaultCandidates: [String] = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -152,17 +170,26 @@ nonisolated struct ClaudeBinaryLocator {
         ]
     }()
 
-    static let shellLookupTimeout: TimeInterval = 10
+    nonisolated static let shellLookupTimeout: TimeInterval = 10
+    static let missRetryInterval: TimeInterval = 10 * 60
 
     private let candidates: [String]
     private let isExecutable: (String) -> Bool
-    private let shellLookup: () -> String?
+    private let shellLookup: () async -> String?
+    private let now: () -> Date
     private var cachedPath: String?
+    private var lastShellMiss: Date?
 
-    init(candidates: [String], isExecutable: @escaping (String) -> Bool, shellLookup: @escaping () -> String?) {
+    init(
+        candidates: [String],
+        isExecutable: @escaping (String) -> Bool,
+        shellLookup: @escaping () async -> String?,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.candidates = candidates
         self.isExecutable = isExecutable
         self.shellLookup = shellLookup
+        self.now = now
     }
 
     /// The production locator: default candidates, real file checks, login-shell lookup.
@@ -170,26 +197,47 @@ nonisolated struct ClaudeBinaryLocator {
         ClaudeBinaryLocator(
             candidates: defaultCandidates,
             isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
-            shellLookup: loginShellLookup
+            shellLookup: { await loginShellLookup() }
         )
     }
 
-    mutating func locate() -> String? {
+    mutating func locate() async -> String? {
         if let cachedPath { return cachedPath }
-        let found = candidates.first(where: isExecutable)
-            ?? shellLookup().flatMap { isExecutable($0) ? $0 : nil }
-        cachedPath = found
-        return found
+        if let found = candidates.first(where: isExecutable) {
+            cachedPath = found
+            return found
+        }
+        if let lastShellMiss, now().timeIntervalSince(lastShellMiss) < Self.missRetryInterval {
+            return nil
+        }
+        if let found = await shellLookup(), isExecutable(found) {
+            cachedPath = found
+            lastShellMiss = nil
+            return found
+        }
+        lastShellMiss = now()
+        return nil
     }
 
+    /// Forgets the cached path and any recent miss, so the next `locate()` searches again.
     mutating func invalidate() {
         cachedPath = nil
+        lastShellMiss = nil
     }
 
-    /// Runs `$SHELL -lc 'command -v claude'` so a PATH set in the user's login
-    /// profile is honored. Takes the last output line that is an absolute path,
-    /// since login profiles can print banners first.
-    static func loginShellLookup() -> String? {
+    /// Runs `$SHELL -lc 'command -v claude'` on a global queue so a PATH set in the
+    /// user's login profile is honored without blocking the caller's actor. Takes the
+    /// last output line that is an absolute path, since login profiles can print
+    /// banners first.
+    nonisolated static func loginShellLookup() async -> String? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: loginShellLookupBlocking())
+            }
+        }
+    }
+
+    nonisolated private static func loginShellLookupBlocking() -> String? {
         let shell = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/zsh"
         let result = ClaudeProcessRunner.runBlocking(
             executable: shell,
@@ -211,7 +259,7 @@ nonisolated struct ClaudeBinaryLocator {
 
 // MARK: - Process Runner
 
-protocol ClaudeProcessRunning {
+nonisolated protocol ClaudeProcessRunning {
     func run(
         executable: String,
         arguments: [String],
