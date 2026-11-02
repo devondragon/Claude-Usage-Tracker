@@ -45,8 +45,6 @@ bash test_notch.sh [movie|abuse]
 
 Unsigned/ad-hoc builds have no reachable data-protection Keychain, so `ProfileStore` keeps profile secrets in the cleartext `profiles_v3` plist instead of the Keychain. This is expected for dev builds (logged once), and it means Keychain-specific behavior can only be verified on a stably signed build.
 
-Launch arguments `--show-github-prompt` and `--show-feedback-prompt` force those prompts for testing.
-
 ## Architecture
 
 Native Swift/SwiftUI menu bar app (`NSApp.setActivationPolicy(.accessory)`, no Dock icon). `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` is set on the app target, so types are main-actor isolated unless marked otherwise. Most services are `static let shared` singletons.
