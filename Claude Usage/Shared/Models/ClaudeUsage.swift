@@ -56,6 +56,31 @@ struct ClaudeUsage: Codable, Equatable {
     var lastUpdated: Date
     var userTimezone: TimeZone
 
+    // Which limits the account has. Accounts without a 5-hour window (Ultra)
+    // or without any window (Enterprise seats capped by monthly spend) report
+    // the block as null; zeros alone cannot tell "unused" from "absent".
+    // Declared after `userTimezone` with defaults so the memberwise
+    // initializer keeps working at existing call sites.
+    var hasSessionWindow: Bool = true
+    var hasWeeklyWindow: Bool = true
+    var spendLimitReached: Bool = false
+
+    /// The account's only limit is a monthly spend cap (costUsed / costLimit, in cents).
+    var isSpendLimited: Bool {
+        !hasSessionWindow && !hasWeeklyWindow && costUsed != nil && (costLimit ?? 0) > 0
+    }
+
+    /// The account reports no window and no usable spend cap.
+    var reportsNoLimits: Bool {
+        !hasSessionWindow && !hasWeeklyWindow && !isSpendLimited
+    }
+
+    /// Share of the monthly spend cap used, in percent. Not clamped: spend can exceed the cap.
+    var spendPercentage: Double {
+        guard let used = costUsed, let limit = costLimit, limit > 0 else { return 0 }
+        return used / limit * 100
+    }
+
     /// Remaining percentage (100 - used percentage)
     var remainingPercentage: Double {
         max(0, 100 - effectiveSessionPercentage)
@@ -143,6 +168,7 @@ extension ClaudeUsage {
         case overageBalance, overageBalanceCurrency
         case planType, creditsBalance, creditsUnlimited
         case lastUpdated, userTimezone
+        case hasSessionWindow, hasWeeklyWindow, spendLimitReached
     }
 
     init(from decoder: Decoder) throws {
@@ -176,7 +202,10 @@ extension ClaudeUsage {
             creditsBalance: try c.decodeIfPresent(Double.self, forKey: .creditsBalance),
             creditsUnlimited: try c.decodeIfPresent(Bool.self, forKey: .creditsUnlimited),
             lastUpdated: try c.decodeIfPresent(Date.self, forKey: .lastUpdated) ?? Date(),
-            userTimezone: try c.decodeIfPresent(TimeZone.self, forKey: .userTimezone) ?? .current
+            userTimezone: try c.decodeIfPresent(TimeZone.self, forKey: .userTimezone) ?? .current,
+            hasSessionWindow: try c.decodeIfPresent(Bool.self, forKey: .hasSessionWindow) ?? true,
+            hasWeeklyWindow: try c.decodeIfPresent(Bool.self, forKey: .hasWeeklyWindow) ?? true,
+            spendLimitReached: try c.decodeIfPresent(Bool.self, forKey: .spendLimitReached) ?? false
         )
     }
 }
