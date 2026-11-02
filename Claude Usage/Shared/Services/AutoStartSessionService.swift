@@ -30,6 +30,9 @@ final class AutoStartSessionService {
     // Track last captured reset time per profile to prevent duplicate auto-starts
     private var lastCapturedResetTime: [UUID: Date] = [:]
 
+    // Persistent per-profile attempt count and backoff (upstream #334)
+    private let attemptStore = AutoStartAttemptStore()
+
     private init() {
         self.apiService = ClaudeAPIService()
         self.profileManager = ProfileManager.shared
@@ -173,13 +176,32 @@ final class AutoStartSessionService {
                     return
                 }
 
-                LoggingService.shared.logInfo("Session at 0% for profile '\(profile.name)' - triggering auto-start")
+                // Bound retries when attempts keep failing, or succeed without
+                // opening a window (upstream #334). Counted before sending so a
+                // crash or quit mid-attempt still counts.
+                let now = Date()
+                let previous = attemptStore.state(for: profile.id)
+                if case .wait(let until) = AutoStartAttemptPolicy.decide(state: previous, now: now) {
+                    let minutes = Int(until.timeIntervalSince(now) / 60)
+                    LoggingService.shared.logDebug("Profile '\(profile.name)': auto-start backing off after \(previous?.attempts ?? 0) attempt(s) - next try in \(minutes)m")
+                    return
+                }
+                let state = AutoStartAttemptPolicy.stateAfterAttempt(previous, now: now)
+                attemptStore.save(state, for: profile.id)
+
+                LoggingService.shared.logInfo("Session at 0% for profile '\(profile.name)' - triggering auto-start (attempt \(state.attempts) of \(AutoStartAttemptPolicy.maxAttempts))")
 
                 // Auto-start the session
                 await autoStartSession(for: profile)
+
+                if state.attempts >= AutoStartAttemptPolicy.maxAttempts {
+                    let hours = Int(AutoStartAttemptPolicy.pauseAfterMaxAttempts / 3600)
+                    LoggingService.shared.logWarning("Profile '\(profile.name)': \(state.attempts) auto-start attempts without an open session window - pausing auto-start for \(hours)h")
+                }
             } else {
                 // Session is active, clear any tracked reset time since usage endpoint is now showing correct data
                 lastCapturedResetTime.removeValue(forKey: profile.id)
+                attemptStore.clear(for: profile.id)
                 LoggingService.shared.logDebug("Profile '\(profile.name)': session at \(currentPercentage)% (window \(hasOpenWindow ? "open" : "closed"))")
             }
 
@@ -474,32 +496,50 @@ final class AutoStartSessionService {
         ]
         messageRequest.httpBody = try JSONSerialization.data(withJSONObject: messageBody)
 
-        let (messageData, messageResponse) = try await URLSession.shared.data(for: messageRequest)
+        // From here on the conversation exists. Delete it whether or not the
+        // message goes through, so a failed send does not leave an empty chat
+        // in the account's history (upstream #334).
+        let messageData: Data
+        do {
+            let (data, messageResponse) = try await URLSession.shared.data(for: messageRequest)
 
-        guard let messageHTTPResponse = messageResponse as? HTTPURLResponse,
-              messageHTTPResponse.statusCode == 200 else {
-            throw AppError(code: .apiGenericError, message: "Failed to send initialization message", isRecoverable: true)
+            guard let messageHTTPResponse = messageResponse as? HTTPURLResponse,
+                  messageHTTPResponse.statusCode == 200 else {
+                let status = (messageResponse as? HTTPURLResponse)?.statusCode ?? -1
+                let snippet = String(decoding: data.prefix(300), as: UTF8.self)
+                LoggingService.shared.logError("Auto-start initialization message failed with status \(status): \(snippet)")
+                throw AppError(code: .apiGenericError, message: "Failed to send initialization message (status \(status))", isRecoverable: true)
+            }
+            messageData = data
+        } catch {
+            await deleteConversation(conversationUUID, orgId: orgId, sessionKey: sessionKey)
+            throw error
         }
-
-        // Capture message data before deleting conversation
-        let capturedData = messageData
 
         // Delete the conversation to keep it out of chat history (incognito mode)
-        let deleteURL = try URLBuilder(baseURL: Constants.APIEndpoints.claudeBase)
-            .appendingPathComponents(["/organizations", orgId, "/chat_conversations", conversationUUID])
-            .build()
+        await deleteConversation(conversationUUID, orgId: orgId, sessionKey: sessionKey)
 
-        var deleteRequest = URLRequest(url: deleteURL)
-        deleteRequest.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: deleteURL), forHTTPHeaderField: "Cookie")
-        deleteRequest.httpMethod = "DELETE"
+        return messageData
+    }
 
-        // Attempt to delete, but don't fail if deletion fails
+    /// Deletes a temporary conversation. Failure is logged, not thrown: the
+    /// caller's result (session started or not) does not depend on it.
+    private func deleteConversation(_ conversationUUID: String, orgId: String, sessionKey: String) async {
         do {
-            _ = try await URLSession.shared.data(for: deleteRequest)
-        } catch {
-            // Silently ignore deletion errors - session is already initialized
-        }
+            let deleteURL = try URLBuilder(baseURL: Constants.APIEndpoints.claudeBase)
+                .appendingPathComponents(["/organizations", orgId, "/chat_conversations", conversationUUID])
+                .build()
 
-        return capturedData
+            var deleteRequest = URLRequest(url: deleteURL)
+            deleteRequest.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: deleteURL), forHTTPHeaderField: "Cookie")
+            deleteRequest.httpMethod = "DELETE"
+
+            let (_, response) = try await URLSession.shared.data(for: deleteRequest)
+            if let status = (response as? HTTPURLResponse)?.statusCode, !(200..<300).contains(status) {
+                LoggingService.shared.logWarning("Auto-start could not delete temporary conversation \(conversationUUID): status \(status)")
+            }
+        } catch {
+            LoggingService.shared.logWarning("Auto-start could not delete temporary conversation \(conversationUUID): \(error.localizedDescription)")
+        }
     }
 }
