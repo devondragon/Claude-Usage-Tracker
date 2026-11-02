@@ -462,7 +462,7 @@ class ClaudeAPIService: APIServiceProtocol {
         async let creditGrantTask: Data? = performRequest(endpoint: "/organizations/\(organizationId)/overage_credit_grant", sessionKey: sessionKey)
 
         let usageData = try await usageDataTask
-        var claudeUsage = try parseUsageResponse(usageData)
+        var claudeUsage = try Self.parseUsageResponse(usageData)
 
         if let data = try? await overageDataTask,
            let overage = try? JSONDecoder().decode(OverageSpendLimitResponse.self, from: data) {
@@ -503,7 +503,7 @@ class ClaudeAPIService: APIServiceProtocol {
             )
         }
 
-        return try parseUsageResponse(data)
+        return try Self.parseUsageResponse(data)
     }
 
     /// Fetches real usage data from Claude's API
@@ -523,7 +523,7 @@ class ClaudeAPIService: APIServiceProtocol {
             async let creditGrantTask: Data? = checkOverage ? performRequest(endpoint: "/organizations/\(orgId)/overage_credit_grant", sessionKey: sessionKey) : nil
 
             let usageData = try await usageDataTask
-            var claudeUsage = try parseUsageResponse(usageData)
+            var claudeUsage = try Self.parseUsageResponse(usageData)
 
             if checkOverage,
                let data = try? await overageDataTask,
@@ -794,7 +794,7 @@ class ClaudeAPIService: APIServiceProtocol {
 
     // MARK: - Response Parsing
 
-    func parseUsageResponse(_ data: Data) throws -> ClaudeUsage {
+    static func parseUsageResponse(_ data: Data) throws -> ClaudeUsage {
         // Parse Claude's actual API response structure
 
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -1117,7 +1117,7 @@ class ClaudeAPIService: APIServiceProtocol {
         return nil
     }
 
-    private func parseUtilization(_ value: Any) -> Double {
+    private static func parseUtilization(_ value: Any) -> Double {
         // Try Int first (most common)
         if let intValue = value as? Int {
             return Double(intValue)

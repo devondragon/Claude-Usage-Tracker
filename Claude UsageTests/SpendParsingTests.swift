@@ -22,7 +22,7 @@ final class SpendParsingTests: XCTestCase {
     """
 
     private func parse(_ json: String) throws -> ClaudeUsage {
-        try ClaudeAPIService().parseUsageResponse(Data(json.utf8))
+        try ClaudeAPIService.parseUsageResponse(Data(json.utf8))
     }
 
     private func object(_ json: String) -> [String: Any] {
