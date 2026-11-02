@@ -120,6 +120,24 @@ final class AnthropicUsageProvider: UsageProviderService {
         !usage.hasSessionWindow && !usage.hasWeeklyWindow && usage.costLimit == nil
     }
 
+    /// Minimum time between spend fetches through the Claude Code login. The
+    /// OAuth usage endpoint rate-limits (HTTP 429) at the app's 30 s refresh.
+    static let spendFetchInterval: TimeInterval = 300
+
+    static func shouldFetchSpend(lastFetch: Date?, now: Date) -> Bool {
+        guard let lastFetch else { return true }
+        return now.timeIntervalSince(lastFetch) >= spendFetchInterval
+    }
+
+    /// The profile's last stored usage, if it carries a spend cap.
+    static func cachedSpend(from usage: ClaudeUsage?) -> ClaudeUsage? {
+        guard let usage, let limit = usage.costLimit, limit > 0 else { return nil }
+        return usage
+    }
+
+    /// When each profile's spend was last fetched (attempted) via Claude Code.
+    private var lastSpendFetch: [UUID: Date] = [:]
+
     /// `usage` with the spend fields of `source`; everything else unchanged.
     static func mergingSpend(from source: ClaudeUsage, into usage: ClaudeUsage) -> ClaudeUsage {
         var merged = usage
@@ -131,10 +149,16 @@ final class AnthropicUsageProvider: UsageProviderService {
     }
 
     /// Fetches spend with the profile's Claude Code token when the claude.ai
-    /// result lacks it. Read-only: the token is never refreshed (another tool
-    /// owns it). Any failure returns `usage` unchanged.
+    /// result lacks it, at most every `spendFetchInterval`. Read-only: the
+    /// token is never refreshed (another tool owns it). Between fetches, and
+    /// when a fetch fails, the last stored spend is kept.
     private func addingSpendFromClaudeCode(to usage: ClaudeUsage, for profile: Profile) async -> ClaudeUsage {
         guard Self.needsSpendFromClaudeCode(usage) else { return usage }
+
+        let fallback = Self.cachedSpend(from: profile.claudeUsage).map { Self.mergingSpend(from: $0, into: usage) } ?? usage
+        let now = Date()
+        guard Self.shouldFetchSpend(lastFetch: lastSpendFetch[profile.id], now: now) else { return fallback }
+        lastSpendFetch[profile.id] = now
 
         // The cached copy first; read the pinned keychain entry (a `security`
         // subprocess) only when the cached token is missing or expired.
@@ -146,16 +170,16 @@ final class AnthropicUsageProvider: UsageProviderService {
             json = pinned
         }
         guard let json, let token = sync.extractAccessToken(from: json) else {
-            return usage
+            return fallback
         }
 
         do {
             let oauthUsage = try await apiService.fetchUsageData(oauthAccessToken: token)
-            guard oauthUsage.costLimit != nil else { return usage }
+            guard oauthUsage.costLimit != nil else { return fallback }
             return Self.mergingSpend(from: oauthUsage, into: usage)
         } catch {
             LoggingService.shared.log("AnthropicUsageProvider: spend via Claude Code login failed for '\(profile.name)': \(error.localizedDescription)")
-            return usage
+            return fallback
         }
     }
 }

@@ -30,6 +30,28 @@ final class SpendFallbackTests: XCTestCase {
         XCTAssertFalse(AnthropicUsageProvider.needsSpendFromClaudeCode(usage))
     }
 
+    func testSpendFetchIsThrottled() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertTrue(AnthropicUsageProvider.shouldFetchSpend(lastFetch: nil, now: now))
+        XCTAssertFalse(AnthropicUsageProvider.shouldFetchSpend(lastFetch: now.addingTimeInterval(-60), now: now))
+        XCTAssertTrue(AnthropicUsageProvider.shouldFetchSpend(lastFetch: now.addingTimeInterval(-300), now: now))
+    }
+
+    func testCachedSpendIsKeptWhenFetchIsSkipped() {
+        var cached = noWindows()
+        cached.costUsed = 2985
+        cached.costLimit = 150000
+        cached.costCurrency = "USD"
+
+        let merged = AnthropicUsageProvider.mergingSpend(from: cached, into: noWindows())
+        XCTAssertTrue(merged.isSpendLimited)
+
+        // A cached snapshot without spend leaves the result unchanged.
+        let unchanged = AnthropicUsageProvider.cachedSpend(from: noWindows())
+        XCTAssertNil(unchanged)
+        XCTAssertEqual(AnthropicUsageProvider.cachedSpend(from: cached)?.costLimit, 150000)
+    }
+
     func testMergeCopiesSpendOnly() {
         var oauth = noWindows()
         oauth.costUsed = 2985
