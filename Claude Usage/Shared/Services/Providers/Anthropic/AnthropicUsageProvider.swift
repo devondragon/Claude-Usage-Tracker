@@ -38,7 +38,8 @@ final class AnthropicUsageProvider: UsageProviderService {
         // Priority 1: claude.ai session key (cookie-based)
         if let sessionKey = profile.claudeSessionKey,
            let orgId = profile.organizationId {
-            return try await apiService.fetchUsageData(sessionKey: sessionKey, organizationId: orgId)
+            let usage = try await apiService.fetchUsageData(sessionKey: sessionKey, organizationId: orgId)
+            return await addingSpendFromClaudeCode(to: usage, for: profile)
         }
 
         // Priority 2: CLI OAuth credentials.
@@ -103,6 +104,58 @@ final class AnthropicUsageProvider: UsageProviderService {
         if profile.customKeychainServiceName != nil, profile.claudeSessionKey == nil {
             return try await fetchUsage(for: profile)
         }
-        return try await apiService.fetchUsageData()
+        let usage = try await apiService.fetchUsageData()
+        return await addingSpendFromClaudeCode(to: usage, for: profile)
+    }
+
+    // MARK: - Spend from the Claude Code login
+
+    // claude.ai's usage endpoint reports no `extra_usage` block for Enterprise
+    // seats, while the Claude Code OAuth endpoint does. When a claude.ai result
+    // shows no windows and no spend, read spend through the profile's Claude
+    // Code login instead.
+
+    /// The result has no 5-hour or weekly limit and no spend: spend may be missing.
+    static func needsSpendFromClaudeCode(_ usage: ClaudeUsage) -> Bool {
+        !usage.hasSessionWindow && !usage.hasWeeklyWindow && usage.costLimit == nil
+    }
+
+    /// `usage` with the spend fields of `source`; everything else unchanged.
+    static func mergingSpend(from source: ClaudeUsage, into usage: ClaudeUsage) -> ClaudeUsage {
+        var merged = usage
+        merged.costUsed = source.costUsed
+        merged.costLimit = source.costLimit
+        merged.costCurrency = source.costCurrency
+        merged.spendLimitReached = source.spendLimitReached
+        return merged
+    }
+
+    /// Fetches spend with the profile's Claude Code token when the claude.ai
+    /// result lacks it. Read-only: the token is never refreshed (another tool
+    /// owns it). Any failure returns `usage` unchanged.
+    private func addingSpendFromClaudeCode(to usage: ClaudeUsage, for profile: Profile) async -> ClaudeUsage {
+        guard Self.needsSpendFromClaudeCode(usage) else { return usage }
+
+        // The cached copy first; read the pinned keychain entry (a `security`
+        // subprocess) only when the cached token is missing or expired.
+        let sync = ClaudeCodeSyncService.shared
+        var json = profile.cliCredentialsJSON.flatMap { sync.isTokenExpired($0) ? nil : $0 }
+        if json == nil, let service = profile.customKeychainServiceName,
+           let pinned = sync.readKeychainCredentials(serviceName: service),
+           !sync.isTokenExpired(pinned) {
+            json = pinned
+        }
+        guard let json, let token = sync.extractAccessToken(from: json) else {
+            return usage
+        }
+
+        do {
+            let oauthUsage = try await apiService.fetchUsageData(oauthAccessToken: token)
+            guard oauthUsage.costLimit != nil else { return usage }
+            return Self.mergingSpend(from: oauthUsage, into: usage)
+        } catch {
+            LoggingService.shared.log("AnthropicUsageProvider: spend via Claude Code login failed for '\(profile.name)': \(error.localizedDescription)")
+            return usage
+        }
     }
 }

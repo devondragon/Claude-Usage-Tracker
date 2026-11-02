@@ -25,4 +25,4 @@ Let a profile get its usage from a Claude Code config dir that is already logged
 
 - Config dirs outside the home directory (or not named `.claude*`). The hash scheme needs the path, and scanning the disk for them is not worth it. Such entries can still be pinned by editing the profile store; the picker for them is removed.
 - Cleaning up stale keychain entries left by temporary config dirs. That deletes Claude Code's items and needs its own explicit step.
-- Using the CLI token for the statusline script and extra-usage spend, which still need a claude.ai session key.
+- Using the CLI token for the statusline script, which still needs a claude.ai session key. (Spend now falls back to the CLI token, read-only, when the claude.ai response has none; see `2026-11-02-monthly-spend-design.md`.)
