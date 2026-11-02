@@ -1,0 +1,63 @@
+import XCTest
+@testable import Claude_Usage
+
+@MainActor
+final class MultiProfileBarValuesTests: XCTestCase {
+
+    private let now = ISO8601DateFormatter().date(from: "2026-11-02T17:27:00Z")!
+
+    func testNormalProfile() {
+        var usage = ClaudeUsage.empty
+        usage.sessionPercentage = 42
+        usage.sessionResetTime = now.addingTimeInterval(2 * 3600)
+        usage.weeklyPercentage = 31
+        usage.weeklyResetTime = now.addingTimeInterval(3 * 86_400)
+
+        let values = MultiProfileBarValues.make(for: usage, showWeek: true, now: now)
+
+        XCTAssertEqual(values.primaryUsed, 42)
+        XCTAssertEqual(values.secondaryUsed, 31)
+        XCTAssertNotNil(values.primaryElapsed)
+        XCTAssertNotNil(values.secondaryElapsed)
+        XCTAssertFalse(values.isSpend)
+        XCTAssertFalse(values.showsAppLogo)
+    }
+
+    func testSpendProfile() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.hasWeeklyWindow = false
+        usage.costUsed = 2985
+        usage.costLimit = 150000
+        usage.costCurrency = "USD"
+
+        let values = MultiProfileBarValues.make(for: usage, showWeek: true, now: now)
+
+        XCTAssertEqual(values.primaryUsed, 1.99, accuracy: 0.001)
+        XCTAssertEqual(values.primaryElapsed ?? 0, 0.058, accuracy: 0.001)
+        XCTAssertNil(values.secondaryUsed)
+        XCTAssertNil(values.secondaryElapsed)
+        XCTAssertTrue(values.isSpend)
+    }
+
+    func testWeeklyOnlyProfile() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.weeklyPercentage = 31
+        usage.weeklyResetTime = now.addingTimeInterval(3 * 86_400)
+
+        let values = MultiProfileBarValues.make(for: usage, showWeek: true, now: now)
+
+        XCTAssertEqual(values.primaryUsed, 31)
+        XCTAssertNil(values.secondaryUsed)
+        XCTAssertFalse(values.isSpend)
+    }
+
+    func testNoLimitsProfile() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.hasWeeklyWindow = false
+
+        XCTAssertTrue(MultiProfileBarValues.make(for: usage, showWeek: true, now: now).showsAppLogo)
+    }
+}
