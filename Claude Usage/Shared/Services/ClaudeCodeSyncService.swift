@@ -684,6 +684,17 @@ class ClaudeCodeSyncService {
         return readOAuthAccount(from: url)
     }
 
+    /// The keychain entry of a profile pinned to a non-default Claude Code config dir.
+    /// Nil when the profile is unpinned or pinned to the default `Claude Code-credentials`
+    /// entry: that entry is the one profile switching writes, so such a profile keeps the
+    /// unpinned switch and capture behavior, including its account check (#355).
+    func pinnedConfigDirService(of profile: Profile) -> String? {
+        guard let svc = profile.customKeychainServiceName, svc != Self.legacyServiceName else {
+            return nil
+        }
+        return svc
+    }
+
     /// The `oauthAccount` of the Claude Code config dir that owns `serviceName`.
     /// The unsuffixed entry belongs to the default `~/.claude`; a hashed entry
     /// belongs to the `~/.claude*` dir whose path hashes to its suffix (see
@@ -802,7 +813,7 @@ class ClaudeCodeSyncService {
 
         // A pinned profile syncs from its own keychain entry and config dir, not
         // from whichever account the default `claude` is logged into (#355).
-        let pinnedService = profiles[index].customKeychainServiceName
+        let pinnedService = pinnedConfigDirService(of: profiles[index])
         let source: String?
         if let pinnedService {
             source = readKeychainCredentials(serviceName: pinnedService)
@@ -849,7 +860,7 @@ class ClaudeCodeSyncService {
         // A pinned profile belongs to its own Claude Code config dir, which already
         // reads its own keychain entry. Writing its token into the default entry and
         // `~/.claude.json` would log the default `claude` into this account (#355).
-        if let pinned = profile.customKeychainServiceName {
+        if let pinned = pinnedConfigDirService(of: profile) {
             LoggingService.shared.log("Profile '\(profile.name)' is pinned to \(pinned); leaving the default Claude Code login untouched")
             return
         }
@@ -1278,7 +1289,7 @@ class ClaudeCodeSyncService {
         // A pinned profile captures from its own entry and config dir. The default
         // entry may hold a different account, so the identity checks below (which
         // compare against the default `~/.claude.json`) do not apply (#355).
-        if let pinned = ProfileStore.shared.loadProfiles().first(where: { $0.id == profileId })?.customKeychainServiceName {
+        if let pinned = ProfileStore.shared.loadProfiles().first(where: { $0.id == profileId }).flatMap(pinnedConfigDirService(of:)) {
             guard let pinnedJSON = readKeychainCredentials(serviceName: pinned),
                   let data = pinnedJSON.data(using: .utf8),
                   (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {

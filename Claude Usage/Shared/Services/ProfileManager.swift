@@ -265,7 +265,7 @@ class ProfileManager: ObservableObject {
                 _ = refreshed
                 // Reload so applyProfileCredentials picks up the refreshed token.
                 profiles = profileStore.loadProfiles()
-            } else if refreshRejected, let pinned = updatedProfile.customKeychainServiceName {
+            } else if refreshRejected, let pinned = cliSyncService.pinnedConfigDirService(of: updatedProfile) {
                 // #355: a pinned profile never writes to the default login, so a dead
                 // token in its own entry is no reason to cancel the switch. That config
                 // dir needs its own /login.
@@ -294,6 +294,13 @@ class ProfileManager: ObservableObject {
                     applySnapshot = false
                 } else if cancelIfLoginExpired {
                     LoggingService.shared.logError("Switch to '\(updatedProfile.name)' cancelled: its saved CLI login could not be refreshed, and the live login was left untouched")
+                    // The resync above may have saved rotated tokens for the profile we are
+                    // staying on. Point activeProfile at the reloaded copy, or a later
+                    // updateProfile(activeProfile) would write the consumed token back.
+                    if let currentId = activeProfile?.id,
+                       let reloadedCurrent = profiles.first(where: { $0.id == currentId }) {
+                        activeProfile = reloadedCurrent
+                    }
                     switchingSemaphore = false
                     isSwitchingProfile = false
                     ErrorPresenter.shared.showAlert(for: AppError(

@@ -36,6 +36,17 @@ final class PinnedKeychainOAuthAccountTests: XCTestCase {
         XCTAssertEqual(service.accountIdentity(fromOAuthAccountJSON: account), "uuid-work@example.com")
     }
 
+    func testOnlyNonDefaultPinsCountAsConfigDirPins() {
+        var profile = Profile(name: "P")
+        XCTAssertNil(service.pinnedConfigDirService(of: profile))
+
+        profile.customKeychainServiceName = "Claude Code-credentials"
+        XCTAssertNil(service.pinnedConfigDirService(of: profile))
+
+        profile.customKeychainServiceName = "Claude Code-credentials-1a2b3c4d"
+        XCTAssertEqual(service.pinnedConfigDirService(of: profile), "Claude Code-credentials-1a2b3c4d")
+    }
+
     func testUnknownHashedEntryReturnsNil() throws {
         _ = try makeConfigDir(".claude-work", email: "work@example.com")
 
