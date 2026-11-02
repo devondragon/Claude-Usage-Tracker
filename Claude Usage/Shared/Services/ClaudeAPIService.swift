@@ -546,12 +546,12 @@ class ClaudeAPIService: APIServiceProtocol {
             // it is the only source of the per-model weekly quotas (Fable/Opus/Sonnet/Design
             // via the limits[] array). The Messages-API header fallback below cannot see
             // those, so per-model bars stay at 0 for CLI-credential profiles without this.
-            if let usage = try? await fetchUsageData(oauthAccessToken: accessToken) {
-                return usage
+            do {
+                return try await fetchUsageData(oauthAccessToken: accessToken)
+            } catch {
+                // Fallback: make a minimal Messages API call and extract usage from response headers.
+                LoggingService.shared.log("ClaudeAPIService: OAuth usage endpoint failed (\(error.localizedDescription)); falling back to Messages API headers")
             }
-
-            // Fallback: make a minimal Messages API call and extract usage from response headers.
-            LoggingService.shared.log("ClaudeAPIService: OAuth usage endpoint unavailable; falling back to Messages API headers")
 
             guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
                 throw AppError(
