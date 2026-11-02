@@ -1073,3 +1073,15 @@
 "support.popup_signature" = "l'équipe d'une seule personne derrière Claude Usage";
 "support.popup_body" = "Gratuit, open source, fait par une seule personne — sans pubs ni pistage. Si Claude Usage vous a déjà évité de griller une limite de session, un café le fait vivre.";
 "support.popup_days" = "Veille sur vos limites depuis %d jours — toujours gratuit";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Comptes Claude Code";
+"cc_accounts.subtitle" = "Utilisez un dossier de configuration Claude Code déjà connecté. L'app lit sa connexion et ne la modifie jamais.";
+"cc_accounts.use" = "Utiliser pour ce profil";
+"cc_accounts.linked" = "Lié";
+"cc_accounts.unlink" = "Délier";
+"cc_accounts.used_by" = "Utilisé par %@";
+"cc_accounts.link_matching" = "Lier les profils correspondants";
+"cc_accounts.empty" = "Aucun dossier de configuration Claude Code connecté trouvé dans votre dossier personnel. Connectez-vous avec claude (ou CLAUDE_CONFIG_DIR=~/.claude-nom claude), puis actualisez.";
+"cc_accounts.unknown_pin" = "Lié à %@, introuvable dans votre dossier personnel.";
+"cc_accounts.linked_count" = "%d profils liés.";

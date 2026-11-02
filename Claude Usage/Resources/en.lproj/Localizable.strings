@@ -1091,3 +1091,15 @@
 "support.popup_signature" = "the one-person team behind Claude Usage";
 "support.popup_body" = "Free, open source, built by one person — no ads, no tracking. If it has ever saved you from burning a session limit, a coffee keeps it going.";
 "support.popup_days" = "Watching your limits for %d days — always free";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Claude Code accounts";
+"cc_accounts.subtitle" = "Use a Claude Code config folder that is already logged in. The app reads its login and never changes it.";
+"cc_accounts.use" = "Use for this profile";
+"cc_accounts.linked" = "Linked";
+"cc_accounts.unlink" = "Unlink";
+"cc_accounts.used_by" = "Used by %@";
+"cc_accounts.link_matching" = "Link matching profiles";
+"cc_accounts.empty" = "No logged-in Claude Code config folders found in your home folder. Log in with claude (or CLAUDE_CONFIG_DIR=~/.claude-name claude), then refresh.";
+"cc_accounts.unknown_pin" = "Linked to %@, which was not found in your home folder.";
+"cc_accounts.linked_count" = "Linked %d profiles.";

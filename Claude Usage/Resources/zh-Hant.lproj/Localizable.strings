@@ -1081,3 +1081,15 @@
 "support.popup_signature" = "Claude Usage 背後的一人團隊";
 "support.popup_body" = "免費、開源、一人開發——沒有廣告，沒有追蹤。如果它曾幫你避免燒掉工作階段額度，一杯咖啡就能讓它繼續前進。";
 "support.popup_days" = "已守護你的額度 %d 天 — 永遠免費";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Claude Code 帳號";
+"cc_accounts.subtitle" = "使用已登入的 Claude Code 設定資料夾。App 只讀取其登入資訊，絕不修改。";
+"cc_accounts.use" = "用於此設定檔";
+"cc_accounts.linked" = "已連結";
+"cc_accounts.unlink" = "取消連結";
+"cc_accounts.used_by" = "%@ 正在使用";
+"cc_accounts.link_matching" = "連結相符的設定檔";
+"cc_accounts.empty" = "在個人專屬資料夾中找不到已登入的 Claude Code 設定資料夾。請用 claude（或 CLAUDE_CONFIG_DIR=~/.claude-name claude）登入，然後重新整理。";
+"cc_accounts.unknown_pin" = "已連結到 %@，但在個人專屬資料夾中找不到。";
+"cc_accounts.linked_count" = "已連結 %d 個設定檔。";

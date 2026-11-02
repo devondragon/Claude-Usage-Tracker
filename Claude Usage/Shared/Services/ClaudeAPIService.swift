@@ -101,7 +101,12 @@ class ClaudeAPIService: APIServiceProtocol {
             }
         }
 
-        // Fall back to reading CLI credentials directly from system Keychain
+        // Fall back to reading CLI credentials directly from system Keychain, except for a
+        // profile pinned to a Claude Code config dir: the default login may be another account.
+        if activeProfile.customKeychainServiceName != nil {
+            LoggingService.shared.logError("ClaudeAPIService.getAuthentication: pinned profile has no valid credentials; not using the default Claude Code login")
+            throw AppError.sessionKeyNotFound()
+        }
         do {
             if let systemCredentials = try ClaudeCodeSyncService.shared.readSystemCredentials() {
                 LoggingService.shared.log("ClaudeAPIService: Found CLI credentials in system Keychain")

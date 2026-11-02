@@ -1087,3 +1087,15 @@
 "support.popup_signature" = "Claude Usage'ın arkasındaki tek kişilik ekip";
 "support.popup_body" = "Ücretsiz, açık kaynak, tek kişi tarafından yapıldı — reklam yok, izleme yok. Sizi bir oturum limitini yakmaktan kurtardıysa, bir kahve onu ayakta tutar.";
 "support.popup_days" = "%d gündür limitlerinizi izliyor — her zaman ücretsiz";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Claude Code hesapları";
+"cc_accounts.subtitle" = "Oturumu zaten açık olan bir Claude Code yapılandırma klasörünü kullanın. Uygulama oturum bilgisini yalnızca okur, asla değiştirmez.";
+"cc_accounts.use" = "Bu profil için kullan";
+"cc_accounts.linked" = "Bağlı";
+"cc_accounts.unlink" = "Bağlantıyı kaldır";
+"cc_accounts.used_by" = "%@ tarafından kullanılıyor";
+"cc_accounts.link_matching" = "Eşleşen profilleri bağla";
+"cc_accounts.empty" = "Ana klasörünüzde oturumu açık bir Claude Code yapılandırma klasörü bulunamadı. claude (veya CLAUDE_CONFIG_DIR=~/.claude-ad claude) ile oturum açın, ardından yenileyin.";
+"cc_accounts.unknown_pin" = "%@ ile bağlı, ancak ana klasörünüzde bulunamadı.";
+"cc_accounts.linked_count" = "%d profil bağlandı.";

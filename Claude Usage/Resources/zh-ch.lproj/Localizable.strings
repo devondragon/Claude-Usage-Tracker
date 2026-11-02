@@ -1081,3 +1081,15 @@
 "support.popup_signature" = "Claude Usage 背后的一人团队";
 "support.popup_body" = "免费、开源、一人开发——没有广告，没有跟踪。如果它曾帮你避免烧掉会话额度，一杯咖啡就能让它继续前进。";
 "support.popup_days" = "已守护你的额度 %d 天 — 永久免费";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Claude Code 账户";
+"cc_accounts.subtitle" = "使用已登录的 Claude Code 配置文件夹。应用只读取其登录信息，从不修改。";
+"cc_accounts.use" = "用于此配置文件";
+"cc_accounts.linked" = "已关联";
+"cc_accounts.unlink" = "取消关联";
+"cc_accounts.used_by" = "%@ 正在使用";
+"cc_accounts.link_matching" = "关联匹配的配置文件";
+"cc_accounts.empty" = "在主文件夹中未找到已登录的 Claude Code 配置文件夹。请用 claude（或 CLAUDE_CONFIG_DIR=~/.claude-name claude）登录，然后刷新。";
+"cc_accounts.unknown_pin" = "已关联到 %@，但在主文件夹中未找到。";
+"cc_accounts.linked_count" = "已关联 %d 个配置文件。";

@@ -1093,3 +1093,15 @@
 "support.popup_body" = "Miễn phí, mã nguồn mở, do một người xây dựng — không quảng cáo, không theo dõi. Nếu nó từng giúp bạn khỏi lãng phí giới hạn phiên, một ly cà phê sẽ giúp nó tiếp tục.";
 "support.popup_days" = "Đồng hành cùng giới hạn của bạn %d ngày — luôn miễn phí";
 "support.popup_later" = "Để sau";
+
+/* Claude Code accounts (linked config dirs) */
+"cc_accounts.title" = "Tài khoản Claude Code";
+"cc_accounts.subtitle" = "Dùng một thư mục cấu hình Claude Code đã đăng nhập. Ứng dụng chỉ đọc thông tin đăng nhập và không bao giờ thay đổi nó.";
+"cc_accounts.use" = "Dùng cho hồ sơ này";
+"cc_accounts.linked" = "Đã liên kết";
+"cc_accounts.unlink" = "Hủy liên kết";
+"cc_accounts.used_by" = "Đang được %@ dùng";
+"cc_accounts.link_matching" = "Liên kết các hồ sơ khớp";
+"cc_accounts.empty" = "Không tìm thấy thư mục cấu hình Claude Code nào đã đăng nhập trong thư mục chính. Đăng nhập bằng claude (hoặc CLAUDE_CONFIG_DIR=~/.claude-name claude), rồi làm mới.";
+"cc_accounts.unknown_pin" = "Đã liên kết với %@, nhưng không tìm thấy trong thư mục chính.";
+"cc_accounts.linked_count" = "Đã liên kết %d hồ sơ.";
