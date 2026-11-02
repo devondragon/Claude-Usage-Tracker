@@ -94,3 +94,26 @@ final class UsageHistoryTests: XCTestCase {
         XCTAssertEqual(history.count, 1)
     }
 }
+
+// MARK: - Billing reset time parsing (#337)
+
+final class BillingResetTimeParsingTests: XCTestCase {
+
+    func testParsesWithFractionalSeconds() {
+        let date = ClaudeAPIService.parseBillingResetTime("2026-12-01T00:00:00.000Z")
+        XCTAssertEqual(date, ISO8601DateFormatter().date(from: "2026-12-01T00:00:00Z"))
+    }
+
+    func testParsesWithoutFractionalSeconds() {
+        let date = ClaudeAPIService.parseBillingResetTime("2026-12-01T00:00:00Z")
+        XCTAssertEqual(date, ISO8601DateFormatter().date(from: "2026-12-01T00:00:00Z"))
+    }
+
+    func testUnparseableValueFallsBackToStableStartOfNextMonth() {
+        let now = ISO8601DateFormatter().date(from: "2026-11-01T23:54:00Z")!
+        let later = now.addingTimeInterval(600)
+        let expected = ISO8601DateFormatter().date(from: "2026-12-01T00:00:00Z")
+        XCTAssertEqual(ClaudeAPIService.parseBillingResetTime("", now: now), expected)
+        XCTAssertEqual(ClaudeAPIService.parseBillingResetTime("", now: later), expected)
+    }
+}

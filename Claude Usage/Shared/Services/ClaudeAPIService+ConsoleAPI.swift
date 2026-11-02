@@ -162,6 +162,27 @@ extension ClaudeAPIService {
         }
     }
 
+    /// Parses the Console spend `resets_at`, with or without fractional seconds.
+    /// An unparseable value falls back to the start of next month (UTC) rather
+    /// than `now`: billing reset detection compares this value across polls, and a
+    /// fallback that moves with the clock was recorded as a billing cycle reset
+    /// whenever the refresh interval exceeded the detection tolerance (#337).
+    static func parseBillingResetTime(_ raw: String, now: Date = Date()) -> Date {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: raw) { return date }
+
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        if let date = plain.date(from: raw) { return date }
+
+        LoggingService.shared.log("ConsoleAPI: unparseable resets_at '\(raw)', using start of next month")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        return calendar.date(byAdding: .month, value: 1, to: startOfMonth) ?? now
+    }
+
     /// Fetches complete API usage data for the given organization
     func fetchAPIUsageData(organizationId: String, apiSessionKey: String) async throws -> APIUsage {
         async let spendTask = fetchCurrentSpend(organizationId: organizationId, apiSessionKey: apiSessionKey)
@@ -170,9 +191,7 @@ extension ClaudeAPIService {
         let spend = try await spendTask
         let credits = try await creditsTask
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let resetsAt = formatter.date(from: spend.resetsAt) ?? Date()
+        let resetsAt = Self.parseBillingResetTime(spend.resetsAt)
 
         // Fetch cost data (non-fatal if it fails)
         var totalCostCents: Double?
