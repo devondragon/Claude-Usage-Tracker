@@ -313,8 +313,11 @@ class ProfileManager: ObservableObject {
             LoggingService.shared.log("⚠️ Profile '\(updatedProfile.name)' has no CLI credentials JSON")
         }
 
-        // Update last used timestamp
-        var updated = updatedProfile
+        // Update last used timestamp. Start from the reloaded copy: the refresh and
+        // adopt paths above persist new credentials and reload `profiles`, and
+        // `updatedProfile` still holds the pre-refresh snapshot. Saving that copy
+        // would put the consumed refresh token back into the profile.
+        var updated = profiles.first(where: { $0.id == updatedProfile.id }) ?? updatedProfile
         updated.lastUsedAt = Date()
 
         if let index = profiles.firstIndex(where: { $0.id == updatedProfile.id }) {
