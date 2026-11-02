@@ -21,7 +21,7 @@ Work order:
 
 ## Status (updated 2026-11-02)
 
-Done and merged into this fork's `main` (fork PRs #1 to #7):
+Done and merged into this fork's `main` (fork PRs #1 to #7 and #9):
 
 - Phase 0, fork identity (#2). Bundle ID, settings import, own Keychain names, Release signing with team `NLLX25D2J2`, Sparkle off, upstream pings and prompts removed.
 - #337 history disk writes (#3). Upstream PR #338 plus two more fake-reset causes: the `now + 5h` placeholder for an idle session, and the billing `resets_at` parse falling back to `Date()`.
@@ -29,12 +29,14 @@ Done and merged into this fork's `main` (fork PRs #1 to #7):
 - #331 and #355 (#5). Upstream PR #345 plus pinned-entry handling, a stale-copy save in `activateProfile`, and auto-switch trying the next candidate.
 - PR #276 (#6). CLI OAuth profiles use the OAuth usage endpoint for per-model quotas.
 - Linking profiles to logged-in Claude Code config dirs (#7). Design: `2026-11-01-claude-code-accounts.md`. Pinned profiles are read-only.
+- #334 empty auto-start chats (#9). The temporary conversation is deleted on failure too, chat requests send browser headers, and attempts are limited per profile (3 attempts 5 and 10 minutes apart, then a 5 hour pause, stored in UserDefaults). Chosen over upstream PR #349; its weekly-limit gate moves into the controls design. Not tested against a live claude.ai account.
 
-Next: step 3 of the work order, auto-start. Fix #334 first (compare upstream PR #349 with a smaller fix), then write the design for the four controls before coding.
+Next: write the design for the four auto-start controls (active hours/schedule, respect the weekly limit, start through the Claude Code CLI, configurable model and message) before coding.
 
 Open loose ends:
 
-- CI has never run on the fork. Workflows have to be enabled in the GitHub Actions tab, and `build.yml` only runs for PRs into `main`.
+- CI runs on the fork now (first runs on PR #9, 2026-11-02).
+- Hosted tests launch the real app with real settings, including auto-start. Upstream PR #349 has a one-line `XCTestCase` guard in `AppDelegate` that would stop this.
 - Not exercised by hand yet: switching between profiles (#5), and linking, unlinking and switching linked profiles (#7).
 - Devon's Tribe and Lumena profiles have no credentials in the fork. Link them in Settings > CLI Account > Claude Code accounts.
 - History files (12 to 27 MB) are pruned the first time a snapshot is recorded, not at launch. Backups were taken on 2026-11-01 in that session's scratchpad.
@@ -62,7 +64,7 @@ A build of this fork currently shares the bundle ID, UserDefaults, Keychain item
 | #337 | Usage history detects a "reset" on nearly every poll and rewrites the whole history file each refresh. Reported 10 to 17 GB/hour of disk writes and a 47 MB file. | Done: fork PR #3. |
 | #331 | On profile switch, a failed `invalid_grant` refresh still writes the dead CLI snapshot into the `Claude Code-credentials` Keychain entry, logging out every running Claude Code session. | Done: fork PR #5. |
 | #355 | Switching to a profile pinned to a custom `CLAUDE_CONFIG_DIR` Keychain entry overwrites the default entry. Re-sync on a pinned profile reads the default entry instead of the pinned one. | Done: fork PR #5. |
-| #334 | Auto-start creates an empty Haiku chat on claude.ai every ~5 minutes when the init message fails. | PR #349 (+920/-341, splits `AutoStartSessionService`). Large; review closely or write a smaller fix: delete the conversation on send failure, persist the last attempted reset time, cap retries. |
+| #334 | Auto-start creates an empty Haiku chat on claude.ai every ~5 minutes when the init message fails. | Done: fork PR #9. |
 | #321 | Every launch overwrites `~/.claude/statusline-command.sh` and `fetch-claude-usage.swift` with no diff check or backup, losing user edits. | No PR. Write fix: only rewrite when content differs, and keep a backup of a modified script. |
 
 ## Phase 2: wrong numbers on current plans and setups
