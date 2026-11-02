@@ -7,13 +7,17 @@ final class MultiProfileBarValuesTests: XCTestCase {
     private let now = ISO8601DateFormatter().date(from: "2026-11-02T17:27:00Z")!
 
     func testNormalProfile() {
+        // Session values compare reset times against the real clock
+        // (`effectiveSessionPercentage`, `elapsedFraction`), so build them
+        // from Date() instead of the fixed `now`.
+        let current = Date()
         var usage = ClaudeUsage.empty
         usage.sessionPercentage = 42
-        usage.sessionResetTime = now.addingTimeInterval(2 * 3600)
+        usage.sessionResetTime = current.addingTimeInterval(2 * 3600)
         usage.weeklyPercentage = 31
-        usage.weeklyResetTime = now.addingTimeInterval(3 * 86_400)
+        usage.weeklyResetTime = current.addingTimeInterval(3 * 86_400)
 
-        let values = MultiProfileBarValues.make(for: usage, showWeek: true, now: now)
+        let values = MultiProfileBarValues.make(for: usage, showWeek: true, now: current)
 
         XCTAssertEqual(values.primaryUsed, 42)
         XCTAssertEqual(values.secondaryUsed, 31)
