@@ -276,7 +276,8 @@ class ClaudeCodeSyncService {
 
     // MARK: - Keychain Service Name Discovery
 
-    private static let legacyServiceName = "Claude Code-credentials"
+    /// The unsuffixed keychain entry, owned by the default `~/.claude` config dir.
+    nonisolated static let legacyServiceName = "Claude Code-credentials"
 
     /// Resolves the correct keychain service name for Claude Code credentials.
     /// Claude Code v2.1.52+ changed from "Claude Code-credentials" to
@@ -557,17 +558,30 @@ class ClaudeCodeSyncService {
         if serviceName == Self.legacyServiceName {
             return readOAuthAccount()
         }
+        guard let dir = configDirPath(forKeychainService: serviceName, homePath: homePath) else {
+            LoggingService.shared.log("readOAuthAccount: no config dir found for keychain entry \(serviceName)")
+            return nil
+        }
+        return readOAuthAccount(from: URL(fileURLWithPath: dir).appendingPathComponent(".claude.json"))
+    }
+
+    /// The `~/.claude*` config dir whose path hashes to the suffix of the keychain entry
+    /// `serviceName`, the same derivation Claude Code uses for `CLAUDE_CONFIG_DIR`.
+    /// Nil when no dir under `homePath` matches, including for the unsuffixed
+    /// `legacyServiceName`, which belongs to the default login rather than a config dir.
+    func configDirPath(
+        forKeychainService serviceName: String,
+        homePath: String = FileManager.default.homeDirectoryForCurrentUser.path
+    ) -> String? {
         guard let entries = try? FileManager.default.contentsOfDirectory(atPath: homePath) else {
             return nil
         }
         for name in entries where name.hasPrefix(".claude") {
             let dir = "\(homePath)/\(name)"
-            guard serviceName == "\(Self.legacyServiceName)-\(sha256HexPrefix(dir, length: 8))" else {
-                continue
+            if serviceName == "\(Self.legacyServiceName)-\(sha256HexPrefix(dir, length: 8))" {
+                return dir
             }
-            return readOAuthAccount(from: URL(fileURLWithPath: dir).appendingPathComponent(".claude.json"))
         }
-        LoggingService.shared.log("readOAuthAccount: no config dir found for keychain entry \(serviceName)")
         return nil
     }
 
