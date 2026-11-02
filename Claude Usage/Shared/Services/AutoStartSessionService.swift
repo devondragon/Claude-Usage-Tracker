@@ -156,6 +156,15 @@ final class AutoStartSessionService {
             // Fetch current usage for this profile
             let (usage, hasOpenWindow) = try await fetchUsageForProfile(profile)
 
+            // Accounts without a 5-hour window (Ultra, Enterprise spend caps)
+            // have no session to start; 0% and no open window would otherwise
+            // trigger an attempt on every check.
+            guard usage.hasSessionWindow else {
+                attemptStore.clear(for: profile.id)
+                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account has no 5-hour session window")
+                return
+            }
+
             let currentPercentage = usage.effectiveSessionPercentage
 
             // A session window that is open but unused reads 0% — often for
@@ -264,10 +273,10 @@ final class AutoStartSessionService {
         }
 
         // Parse usage response
-        return try parseUsageResponse(data)  // (usage, hasOpenWindow)
+        return try Self.parseUsageResponse(data)  // (usage, hasOpenWindow)
     }
 
-    private func parseUsageResponse(_ data: Data) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
+    static func parseUsageResponse(_ data: Data) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AppError(code: .apiParsingFailed, message: "Failed to parse usage data", isRecoverable: false)
         }
@@ -338,7 +347,7 @@ final class AutoStartSessionService {
         let opusTokens = Int(Double(weeklyLimit) * (opusPercentage / 100.0))
         let sonnetTokens = Int(Double(weeklyLimit) * (sonnetPercentage / 100.0))
 
-        let usage = ClaudeUsage(
+        var usage = ClaudeUsage(
             sessionTokensUsed: 0,
             sessionLimit: 0,
             sessionPercentage: sessionPercentage,
@@ -364,10 +373,21 @@ final class AutoStartSessionService {
             lastUpdated: Date(),
             userTimezone: .current
         )
+        // No five_hour block: the account has no session window to open.
+        // The window flags and spend are filled like the shared parser's,
+        // because this usage is saved to the profile.
+        usage.hasSessionWindow = json["five_hour"] is [String: Any]
+        usage.hasWeeklyWindow = json["seven_day"] is [String: Any]
+        if let spend = ClaudeAPIService.parseSpend(from: json) {
+            usage.costUsed = spend.usedCents
+            usage.costLimit = spend.limitCents
+            usage.costCurrency = spend.currency
+            usage.spendLimitReached = spend.limitReached
+        }
         return (usage, hasOpenWindow)
     }
 
-    private func parseUtilization(_ value: Any) -> Double {
+    private static func parseUtilization(_ value: Any) -> Double {
         if let intValue = value as? Int {
             return Double(intValue)
         }

@@ -3,6 +3,15 @@ import Foundation
 // MARK: - API Response Types
 
 extension ClaudeAPIService {
+    /// Monthly spend cap read from a usage response (`extra_usage`, or the newer `spend` block).
+    /// Amounts are in cents.
+    struct ParsedSpend: Equatable {
+        let usedCents: Double
+        let limitCents: Double
+        let currency: String
+        let limitReached: Bool
+    }
+
     struct UsageResponse: Codable {
         let usage: [UsagePeriod]
 

@@ -800,7 +800,7 @@ class ClaudeAPIService: APIServiceProtocol {
 
     // MARK: - Response Parsing
 
-    private func parseUsageResponse(_ data: Data) throws -> ClaudeUsage {
+    func parseUsageResponse(_ data: Data) throws -> ClaudeUsage {
         // Parse Claude's actual API response structure
 
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -927,7 +927,7 @@ class ClaudeAPIService: APIServiceProtocol {
             let designTokens = Int(Double(weeklyLimit) * (designPercentage / 100.0))
             let fableTokens = Int(Double(weeklyLimit) * (fablePercentage / 100.0))
 
-            let usage = ClaudeUsage(
+            var usage = ClaudeUsage(
                 sessionTokensUsed: sessionTokens,
                 sessionLimit: sessionLimit,
                 sessionPercentage: sessionPercentage,
@@ -953,6 +953,19 @@ class ClaudeAPIService: APIServiceProtocol {
                 lastUpdated: Date(),
                 userTimezone: .current
             )
+
+            // A null or missing block means the account has no such window,
+            // as opposed to an unused one (Ultra has no 5-hour window;
+            // Enterprise seats capped by monthly spend have neither).
+            usage.hasSessionWindow = json["five_hour"] is [String: Any]
+            usage.hasWeeklyWindow = json["seven_day"] is [String: Any]
+
+            if let spend = Self.parseSpend(from: json) {
+                usage.costUsed = spend.usedCents
+                usage.costLimit = spend.limitCents
+                usage.costCurrency = spend.currency
+                usage.spendLimitReached = spend.limitReached
+            }
 
             return usage
         }
@@ -1050,6 +1063,50 @@ class ClaudeAPIService: APIServiceProtocol {
     /// Robust utilization parser that handles Int, Double, or String types
     /// - Parameter value: The utilization value from API (can be Int, Double, or String)
     /// - Returns: Parsed percentage as Double, or 0.0 if parsing fails
+    /// Reads the monthly spend cap. Prefers `extra_usage`; falls back to `spend`.
+    /// Returns nil when spend tracking is disabled, missing, or has no limit.
+    static func parseSpend(from json: [String: Any]) -> ParsedSpend? {
+        func number(_ value: Any?) -> Double? {
+            if let n = value as? NSNumber { return n.doubleValue }
+            if let s = value as? String { return Double(s) }
+            return nil
+        }
+        // Minor units at `decimalPlaces` scale, converted to cents.
+        func cents(_ value: Double, decimalPlaces: Int) -> Double {
+            value * pow(10, Double(2 - decimalPlaces))
+        }
+
+        if let extra = json["extra_usage"] as? [String: Any] {
+            guard extra["is_enabled"] as? Bool == true,
+                  let limit = number(extra["monthly_limit"]), limit > 0,
+                  let used = number(extra["used_credits"]) else { return nil }
+            let places = (extra["decimal_places"] as? Int) ?? 2
+            return ParsedSpend(
+                usedCents: cents(used, decimalPlaces: places),
+                limitCents: cents(limit, decimalPlaces: places),
+                currency: (extra["currency"] as? String) ?? "USD",
+                limitReached: extra["spend_limit_reached"] as? Bool ?? false
+            )
+        }
+
+        if let spend = json["spend"] as? [String: Any] {
+            guard spend["enabled"] as? Bool == true,
+                  let usedBlock = spend["used"] as? [String: Any],
+                  let limitBlock = spend["limit"] as? [String: Any],
+                  let used = number(usedBlock["amount_minor"]),
+                  let limit = number(limitBlock["amount_minor"]), limit > 0 else { return nil }
+            let places = (usedBlock["exponent"] as? Int) ?? 2
+            return ParsedSpend(
+                usedCents: cents(used, decimalPlaces: places),
+                limitCents: cents(limit, decimalPlaces: (limitBlock["exponent"] as? Int) ?? places),
+                currency: (usedBlock["currency"] as? String) ?? "USD",
+                limitReached: false
+            )
+        }
+
+        return nil
+    }
+
     private func parseUtilization(_ value: Any) -> Double {
         // Try Int first (most common)
         if let intValue = value as? Int {
