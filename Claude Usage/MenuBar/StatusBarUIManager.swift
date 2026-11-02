@@ -373,8 +373,8 @@ final class StatusBarUIManager {
             let weekUsed = values.secondaryUsed ?? 0
             let sessionElapsed = values.primaryElapsed
             let weekElapsed = values.secondaryElapsed
-            // Name labels mark the spend bar with "$" ("Tribe $").
-            let labelName = values.isSpend ? "\(profile.name) $" : profile.name
+            // Name labels mark the spend bar with "$" ("Tr$").
+            let labelName = MultiProfileBarValues.label(for: profile.name, isSpend: values.isSpend)
 
             let sessionDisplay = UsageStatusCalculator.getDisplayPercentage(
                 usedPercentage: sessionUsed,

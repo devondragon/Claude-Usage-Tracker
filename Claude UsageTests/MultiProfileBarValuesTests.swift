@@ -52,4 +52,11 @@ final class MultiProfileBarValuesTests: XCTestCase {
         XCTAssertEqual(values.secondaryUsed, 31)
         XCTAssertFalse(values.isSpend)
     }
+
+    func testSpendLabelSurvivesThreeCharacterLimit() {
+        // The renderer shows at most three characters of a profile label.
+        XCTAssertEqual(MultiProfileBarValues.label(for: "Tribe", isSpend: true), "Tr$")
+        XCTAssertEqual(MultiProfileBarValues.label(for: "T", isSpend: true), "T$")
+        XCTAssertEqual(MultiProfileBarValues.label(for: "Personal", isSpend: false), "Personal")
+    }
 }

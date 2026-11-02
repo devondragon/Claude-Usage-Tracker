@@ -19,6 +19,12 @@ struct MultiProfileBarValues: Equatable {
     /// The first bar is monthly spend.
     let isSpend: Bool
 
+    /// The profile label to draw. Multi-profile icons show at most three
+    /// characters, so the spend marker replaces the third: "Tribe" -> "Tr$".
+    static func label(for profileName: String, isSpend: Bool) -> String {
+        isSpend ? "\(profileName.prefix(2))$" : profileName
+    }
+
     static func make(for usage: ClaudeUsage, showWeek: Bool, now: Date) -> MultiProfileBarValues {
         if usage.isSpendLimited {
             return MultiProfileBarValues(
