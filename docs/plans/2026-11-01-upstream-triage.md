@@ -21,7 +21,7 @@ Work order:
 
 ## Status (updated 2026-11-02)
 
-Done and merged into this fork's `main` (fork PRs #1 to #7 and #9):
+Done and merged into this fork's `main` (fork PRs #1 to #7, #9, and #10):
 
 - Phase 0, fork identity (#2). Bundle ID, settings import, own Keychain names, Release signing with team `NLLX25D2J2`, Sparkle off, upstream pings and prompts removed.
 - #337 history disk writes (#3). Upstream PR #338 plus two more fake-reset causes: the `now + 5h` placeholder for an idle session, and the billing `resets_at` parse falling back to `Date()`.
@@ -30,10 +30,11 @@ Done and merged into this fork's `main` (fork PRs #1 to #7 and #9):
 - PR #276 (#6). CLI OAuth profiles use the OAuth usage endpoint for per-model quotas.
 - Linking profiles to logged-in Claude Code config dirs (#7). Design: `2026-11-01-claude-code-accounts.md`. Pinned profiles are read-only.
 - #334 empty auto-start chats (#9). The temporary conversation is deleted on failure too, chat requests send browser headers, and attempts are limited per profile (3 attempts 5 and 10 minutes apart, then a 5 hour pause, stored in UserDefaults). Chosen over upstream PR #349; its weekly-limit gate moves into the controls design. Not tested against a live claude.ai account.
+- Monthly spend display for spend-limited accounts (Enterprise seats) (#10). Design `2026-11-02-monthly-spend-design.md`, plan `2026-11-02-monthly-spend-plan.md`. #356 (Ultra, no 5-hour limit) is still open: a Max account with no session running also returns `five_hour: null`, so a single response cannot tell the two apart.
 
-In review: monthly spend display for spend-limited accounts (Enterprise seats), branch `feat/monthly-spend`. Design `2026-11-02-monthly-spend-design.md`, plan `2026-11-02-monthly-spend-plan.md`. #356 (Ultra, no 5-hour limit) is still open: a Max account with no session running also returns `five_hour: null`, so a single response cannot tell the two apart.
+In review: auto-start schedules, branch `feat/auto-start-schedules`. Per-profile weekday and weekend hours, with windows opened by running `claude -p` under the profile's Claude Code login; the claude.ai chat path is removed. Design `2026-11-02-auto-start-schedules-design.md`, plan `2026-11-02-auto-start-schedules-plan.md`.
 
-Next: write the design for the four auto-start controls (active hours/schedule, respect the weekly limit, start through the Claude Code CLI, configurable model and message) before coding.
+Next: the statusline pair, #321 (launch overwrites the installed scripts) and #322 (usage segment dropped when the cache is older than 300 s).
 
 Open loose ends:
 
@@ -43,6 +44,8 @@ Open loose ends:
 - Devon's Tribe and Lumena profiles have no credentials in the fork. Link them in Settings > CLI Account > Claude Code accounts.
 - History files (12 to 27 MB) are pruned the first time a snapshot is recorded, not at launch. Backups were taken on 2026-11-01 in that session's scratchpad.
 - The login keychain holds about 5,229 `Claude Code-credentials-<hash>` entries left by temporary config dirs. Cleanup deletes Claude Code's items, so it needs Devon's go-ahead.
+- `ClaudeCodeSyncService` Keychain reads run on the main actor, and each can block for up to 3 s when `security` hangs. Move them off the main actor in their own PR.
+- `MultiProfileBarValuesTests.testNormalProfile` depends on the clock and fails once real time passes 2026-11-02T19:27Z. Fix it in its own PR.
 - Devon's daily copy is `/Applications/Claude Usage.app`, installed from `main` with `scripts/install-local.sh` (2026-11-02). The `Claude-Usage-Tracker-local` worktree and the upstream app are gone (upstream app moved to the Trash).
 
 ## How to take upstream PRs

@@ -5,6 +5,16 @@ All notable changes to Claude Usage Tracker will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Auto-start runs on a schedule through the Claude Code CLI**: each profile with auto-start on gets weekday and weekend start and stop times (defaults 07:00 to 20:00 on weekdays and 09:00 to 22:00 on weekends). Inside those hours, when no 5-hour window is open, the app runs `claude -p` with a one-word prompt on Haiku under the profile's own Claude Code login (`CLAUDE_CONFIG_DIR` for a linked config dir, the default `~/.claude` login otherwise, only when it is the same account). A timer fires at each schedule start and window reset, so starts land on time. Failed attempts back off and pause for 5 hours after three tries, and the profile's General settings show the last attempt's result.
+
+### Removed
+
+- **Auto-start no longer sends a chat message through claude.ai**: the old path sent "Hi" as a claude.ai chat using the session key cookie and then deleted the conversation. Auto-start now needs Claude Code installed and logged in to the profile's account; a claude.ai session key is not used for it.
+
 ## [3.3.0] - 2026-08-29
 
 ### Major Features
