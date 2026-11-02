@@ -123,8 +123,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Auto-start session on reset";
-"session.auto_start.description" = "Automatically send 'Hi' to Claude when your session resets to 0%. This keeps your session always ready without manual intervention.";
 "session.enable_auto_start" = "Enable auto-start session";
 "session.beta_badge" = "BETA";
 
@@ -156,7 +154,7 @@
 "setup.instruction.step4" = "Double-click its Value and copy (Cmd+C)";
 "setup.paste_session_key" = "Paste the sessionKey value you copied";
 "setup.auto_start_session" = "Auto-start session on reset";
-"setup.auto_start_session.description" = "Automatically send 'Hi' to Claude 3.5 Haiku when your session resets to 0%. This keeps your session always ready without manual intervention.";
+"setup.auto_start_session.description" = "Keeps a 5-hour session window open during your schedule by sending a one-word message through Claude Code. Set the schedule in profile settings.";
 "setup.enable_auto_start" = "Enable auto-start session";
 "setup.menubar_appearance" = "Menu Bar Appearance";
 "setup.choose_icon_style" = "Choose your preferred icon style";
@@ -565,8 +563,15 @@
 "general.autostart_title" = "Auto-Start Session";
 "general.autostart_subtitle" = "Automatically start a new session when needed";
 "general.autostart_toggle" = "Auto-Start New Session";
-"general.autostart_description" = "Automatically send a message when session resets";
-"general.autostart_requirement" = "• Session key configured in Credentials → Claude.ai tab";
+"general.autostart_description" = "Keeps a 5-hour session window open during your schedule by sending a one-word message through Claude Code.";
+"general.autostart_requirement" = "• Claude Code logged in to this account (a linked config dir, or the default login)";
+"general.autostart_weekdays" = "Weekdays";
+"general.autostart_weekends" = "Weekends";
+"general.autostart_start" = "Start";
+"general.autostart_stop" = "Stop";
+"general.autostart_last_success" = "Last started %@";
+"general.autostart_last_failure" = "Last attempt failed %@: %@";
+"general.autostart_never" = "No auto-start yet";
 "general.notifications_title" = "Notifications";
 "general.notifications_subtitle" = "Get notified about usage milestones";
 "general.connected" = "Connected";
@@ -776,7 +781,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Using Claude Code?";
-"wizard.claude_code_info_description" = "Usage tracking will work, but CLI status line & auto-start session won't work without session key";
+"wizard.claude_code_info_description" = "Usage tracking works. The CLI status line needs a session key; auto-start only needs Claude Code logged in to this account.";
 "wizard.claude_code_skip_setup" = "Skip Setup";
 "wizard.migrate_description_short" = "Import your old profiles data from previous app version";
 "wizard.skip_migration" = "Skip";

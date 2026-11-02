@@ -170,10 +170,10 @@ final class SpendParsingTests: XCTestCase {
         // claude.ai's response for an Enterprise seat: no windows, no spend.
         let claudeAI = #"{"five_hour": null, "seven_day": null, "limits": []}"#
         let (seat, _) = try AutoStartSessionService.parseUsageResponse(Data(claudeAI.utf8))
-        XCTAssertTrue(AutoStartSessionService.shouldSkipAutoStart(seat))
+        XCTAssertTrue(seat.hasNoUsageWindows)
 
         let (idleMax, _) = try AutoStartSessionService.parseUsageResponse(Data(idleMaxJSON.utf8))
-        XCTAssertFalse(AutoStartSessionService.shouldSkipAutoStart(idleMax))
+        XCTAssertFalse(idleMax.hasNoUsageWindows)
     }
 
     func testOverageWithoutLimitDoesNotEraseSpend() throws {

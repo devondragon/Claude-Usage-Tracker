@@ -117,8 +117,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Démarrage automatique de session à la réinitialisation";
-"session.auto_start.description" = "Envoyer automatiquement 'Bonjour' à Claude lorsque votre session se réinitialise à 0%. Cela garde votre session toujours prête sans intervention manuelle.";
 "session.enable_auto_start" = "Activer le démarrage automatique de session";
 "session.beta_badge" = "BETA";
 
@@ -150,7 +148,7 @@
 "setup.instruction.step4" = "Double-cliquez sur sa Valeur et copiez (Cmd+C)";
 "setup.paste_session_key" = "Collez la valeur sessionKey que vous avez copiée";
 "setup.auto_start_session" = "Démarrage automatique de session à la réinitialisation";
-"setup.auto_start_session.description" = "Envoyer automatiquement 'Bonjour' à Claude lorsque votre session se réinitialise à 0%. Cela garde votre session toujours prête sans intervention manuelle.";
+"setup.auto_start_session.description" = "Garde une fenêtre de session de 5 heures ouverte pendant votre horaire en envoyant un message d'un mot via Claude Code. L'horaire se règle dans les réglages du profil.";
 "setup.enable_auto_start" = "Activer le démarrage automatique de session";
 "setup.menubar_appearance" = "Apparence de la Barre de Menus";
 "setup.choose_icon_style" = "Choisissez votre style d'icône préféré";
@@ -565,8 +563,15 @@
 "general.autostart_title" = "Démarrage Automatique de Session";
 "general.autostart_subtitle" = "Démarrer automatiquement une nouvelle session si nécessaire";
 "general.autostart_toggle" = "Démarrage Automatique de Nouvelle Session";
-"general.autostart_description" = "Envoyer automatiquement un message lors de la réinitialisation de la session";
-"general.autostart_requirement" = "• Clé de session configurée dans Identifiants → onglet Claude.ai";
+"general.autostart_description" = "Garde une fenêtre de session de 5 heures ouverte pendant votre horaire en envoyant un message d'un mot via Claude Code.";
+"general.autostart_requirement" = "• Claude Code connecté à ce compte (un dossier de configuration lié ou la connexion par défaut)";
+"general.autostart_weekdays" = "Semaine";
+"general.autostart_weekends" = "Week-end";
+"general.autostart_start" = "Début";
+"general.autostart_stop" = "Fin";
+"general.autostart_last_success" = "Dernier démarrage %@";
+"general.autostart_last_failure" = "Dernière tentative échouée %@ : %@";
+"general.autostart_never" = "Aucun démarrage automatique pour l'instant";
 "general.notifications_title" = "Notifications";
 "general.notifications_subtitle" = "Recevoir des notifications sur les jalons d'utilisation";
 "general.connected" = "Connecté";
@@ -760,7 +765,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Vous utilisez Claude Code ?";
-"wizard.claude_code_info_description" = "Le suivi d'utilisation fonctionnera, mais la ligne d'état CLI et le démarrage automatique de session ne fonctionneront pas sans clé de session";
+"wizard.claude_code_info_description" = "Le suivi d'utilisation fonctionne. La ligne d'état CLI nécessite une clé de session ; le démarrage automatique nécessite seulement Claude Code connecté à ce compte.";
 "wizard.claude_code_skip_setup" = "Ignorer la configuration";
 
 /* Migration Strings */

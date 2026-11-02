@@ -66,7 +66,7 @@ struct GeneralSettingsView: View {
                     }
 
                     // Auto-Start Session (capability-gated: burns tokens via
-                    // the claude.ai conversation API)
+                    // the Claude Code CLI)
                     if profile.provider.descriptor.capabilities.autoStartSession {
                     SettingsSectionCard(
                         title: "general.autostart_title".localized,
@@ -85,6 +85,12 @@ struct GeneralSettingsView: View {
                                     }
                                 )
                             )
+
+                            if profile.autoStartSessionEnabled {
+                                AutoStartScheduleRows(profile: profile) { updated in
+                                    profileManager.updateProfile(updated)
+                                }
+                            }
 
                             // Requirement
                             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {

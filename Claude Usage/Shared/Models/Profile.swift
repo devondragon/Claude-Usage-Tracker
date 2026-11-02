@@ -66,6 +66,8 @@ struct Profile: Codable, Identifiable, Equatable {
     // MARK: - Behavior Settings (Per-Profile)
     var refreshInterval: TimeInterval
     var autoStartSessionEnabled: Bool
+    /// Weekday/weekend hours for auto-start. nil means `AutoStartSchedule.default`.
+    var autoStartSchedule: AutoStartSchedule?
     var checkOverageLimitEnabled: Bool
 
     // MARK: - Notification Settings (Per-Profile)
@@ -99,6 +101,7 @@ struct Profile: Codable, Identifiable, Equatable {
         iconConfig: MenuBarIconConfiguration = .default,
         refreshInterval: TimeInterval = 30.0,
         autoStartSessionEnabled: Bool = false,
+        autoStartSchedule: AutoStartSchedule? = nil,
         checkOverageLimitEnabled: Bool = true,
         notificationSettings: NotificationSettings = NotificationSettings(),
         isSelectedForDisplay: Bool = true,
@@ -125,6 +128,7 @@ struct Profile: Codable, Identifiable, Equatable {
         self.iconConfig = iconConfig
         self.refreshInterval = refreshInterval
         self.autoStartSessionEnabled = autoStartSessionEnabled
+        self.autoStartSchedule = autoStartSchedule
         self.checkOverageLimitEnabled = checkOverageLimitEnabled
         self.notificationSettings = notificationSettings
         self.isSelectedForDisplay = isSelectedForDisplay
@@ -152,7 +156,7 @@ struct Profile: Codable, Identifiable, Equatable {
         case oauthAccountJSON
         case claudeUsage, apiUsage
         case iconConfig
-        case refreshInterval, autoStartSessionEnabled, checkOverageLimitEnabled
+        case refreshInterval, autoStartSessionEnabled, autoStartSchedule, checkOverageLimitEnabled
         case notificationSettings
         case isSelectedForDisplay
         case createdAt, lastUsedAt
@@ -188,6 +192,7 @@ struct Profile: Codable, Identifiable, Equatable {
         iconConfig = try c.decodeIfPresent(MenuBarIconConfiguration.self, forKey: .iconConfig) ?? .default
         refreshInterval = try c.decodeIfPresent(TimeInterval.self, forKey: .refreshInterval) ?? 30.0
         autoStartSessionEnabled = try c.decodeIfPresent(Bool.self, forKey: .autoStartSessionEnabled) ?? false
+        autoStartSchedule = try c.decodeIfPresent(AutoStartSchedule.self, forKey: .autoStartSchedule)
         checkOverageLimitEnabled = try c.decodeIfPresent(Bool.self, forKey: .checkOverageLimitEnabled) ?? true
         notificationSettings = try c.decodeIfPresent(NotificationSettings.self, forKey: .notificationSettings) ?? NotificationSettings()
         isSelectedForDisplay = try c.decodeIfPresent(Bool.self, forKey: .isSelectedForDisplay) ?? true
@@ -221,6 +226,7 @@ struct Profile: Codable, Identifiable, Equatable {
         try c.encode(iconConfig, forKey: .iconConfig)
         try c.encode(refreshInterval, forKey: .refreshInterval)
         try c.encode(autoStartSessionEnabled, forKey: .autoStartSessionEnabled)
+        try c.encodeIfPresent(autoStartSchedule, forKey: .autoStartSchedule)
         try c.encode(checkOverageLimitEnabled, forKey: .checkOverageLimitEnabled)
         try c.encode(notificationSettings, forKey: .notificationSettings)
         try c.encode(isSelectedForDisplay, forKey: .isSelectedForDisplay)
@@ -229,6 +235,10 @@ struct Profile: Codable, Identifiable, Equatable {
     }
 
     // MARK: - Computed Properties
+    var effectiveAutoStartSchedule: AutoStartSchedule {
+        autoStartSchedule ?? .default
+    }
+
     var hasClaudeAI: Bool {
         claudeSessionKey != nil && organizationId != nil
     }

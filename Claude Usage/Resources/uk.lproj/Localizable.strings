@@ -123,8 +123,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Автозапуск сесії при скиданні";
-"session.auto_start.description" = "Автоматично надсилати «Привіт» до Claude при скиданні сесії до 0%. Це тримає сесію завжди готовою без ручного втручання.";
 "session.enable_auto_start" = "Увімкнути автозапуск сесії";
 "session.beta_badge" = "БЕТА";
 
@@ -156,7 +154,7 @@
 "setup.instruction.step4" = "Двічі клацніть його значення та скопіюйте (Cmd+C)";
 "setup.paste_session_key" = "Вставте скопійоване значення sessionKey";
 "setup.auto_start_session" = "Автозапуск сесії при скиданні";
-"setup.auto_start_session.description" = "Автоматично надсилати «Привіт» до Claude 3.5 Haiku при скиданні сесії до 0%. Це тримає сесію завжди готовою без ручного втручання.";
+"setup.auto_start_session.description" = "Утримує 5-годинне вікно сеансу відкритим протягом вашого розкладу, надсилаючи повідомлення з одного слова через Claude Code. Розклад задається в налаштуваннях профілю.";
 "setup.enable_auto_start" = "Увімкнути автозапуск сесії";
 "setup.menubar_appearance" = "Зовнішній вигляд рядка меню";
 "setup.choose_icon_style" = "Виберіть бажаний стиль іконки";
@@ -565,8 +563,15 @@
 "general.autostart_title" = "Автозапуск сесії";
 "general.autostart_subtitle" = "Автоматично запускати нову сесію за потреби";
 "general.autostart_toggle" = "Автозапуск нової сесії";
-"general.autostart_description" = "Автоматично надсилати повідомлення при скиданні сесії";
-"general.autostart_requirement" = "• Ключ сесії налаштовано в Облікові дані → вкладка Claude.ai";
+"general.autostart_description" = "Утримує 5-годинне вікно сеансу відкритим протягом вашого розкладу, надсилаючи повідомлення з одного слова через Claude Code.";
+"general.autostart_requirement" = "• Claude Code із входом в цей обліковий запис (пов'язаний каталог конфігурації або стандартний вхід)";
+"general.autostart_weekdays" = "Будні";
+"general.autostart_weekends" = "Вихідні";
+"general.autostart_start" = "Початок";
+"general.autostart_stop" = "Кінець";
+"general.autostart_last_success" = "Останній запуск %@";
+"general.autostart_last_failure" = "Остання спроба невдала %@: %@";
+"general.autostart_never" = "Автозапусків ще не було";
 "general.notifications_title" = "Сповіщення";
 "general.notifications_subtitle" = "Отримуйте сповіщення про досягнення лімітів використання";
 "general.connected" = "Підключено";
@@ -776,7 +781,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Використовуєте Claude Code?";
-"wizard.claude_code_info_description" = "Відстеження використання працюватиме, але рядок статусу CLI та автозапуск сесії не працюватимуть без ключа сесії";
+"wizard.claude_code_info_description" = "Відстеження використання працює. Рядок статусу CLI потребує ключа сесії; автозапуск сесії потребує лише Claude Code, у якому виконано вхід у цей обліковий запис.";
 "wizard.claude_code_skip_setup" = "Пропустити налаштування";
 "wizard.migrate_description_short" = "Імпортувати дані старих профілів з попередньої версії програми";
 "wizard.skip_migration" = "Пропустити";

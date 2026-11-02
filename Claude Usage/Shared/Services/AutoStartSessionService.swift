@@ -7,14 +7,29 @@
 
 import Foundation
 import Cocoa
+import Combine
 
-/// Background service that monitors all profiles and auto-starts sessions when they reset
+/// Background service that opens a Claude 5-hour session window for each
+/// profile with auto-start enabled, within the profile's weekday or weekend
+/// schedule, by running `claude -p` under the profile's own Claude Code login.
 @MainActor
 final class AutoStartSessionService {
     static let shared = AutoStartSessionService()
 
-    // Timer for 5-minute check cycle
+    /// Longest a ping may run before it is terminated and counted as failed.
+    static let pingTimeout: TimeInterval = 60
+    /// A one-shot check for an open window runs this long after its `resets_at`.
+    static let resetSlack: TimeInterval = 30
+    /// A one-shot check is never scheduled sooner than this, so a bad schedule
+    /// or a reset time already past cannot make the timer fire in a loop.
+    static let minimumTimerDelay: TimeInterval = 60
+
+    static let oauthUsageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+
+    // Repeating 5-minute check
     private var checkTimer: Timer?
+    // Check at the next schedule start or window reset, re-armed after every check
+    private var oneShotTimer: Timer?
 
     // Track last check time to prevent duplicate checks on wake
     private var lastCheckTime: Date = .distantPast
@@ -22,26 +37,70 @@ final class AutoStartSessionService {
     // Observers for sleep/wake notifications
     private var wakeObserver: NSObjectProtocol?
     private var sleepObserver: NSObjectProtocol?
+    // Re-arms the one-shot timer when a profile's auto-start toggle or schedule changes
+    private var profileChangeObserver: AnyCancellable?
 
-    private let apiService: ClaudeAPIService
     private let profileManager: ProfileManager
     private let notificationManager: NotificationManager
-
-    // Track last captured reset time per profile to prevent duplicate auto-starts
-    private var lastCapturedResetTime: [UUID: Date] = [:]
+    private let runner: ClaudeProcessRunning
+    private let now: () -> Date
+    private let calendar: Calendar
 
     // Persistent per-profile attempt count and backoff (upstream #334)
-    private let attemptStore = AutoStartAttemptStore()
+    private let attemptStore: AutoStartAttemptStore
+    // Last result per profile and once-per-day skip logging
+    private var statusStore: AutoStartStatusStore
 
-    private init() {
-        self.apiService = ClaudeAPIService()
+    private let injectedLoginResolver: ((Profile) -> Result<AutoStartLogin, AutoStartSkipReason>)?
+    private let injectedUsageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)?
+    private let injectedProfiles: (() -> [Profile])?
+    private let injectedProfileChanges: AnyPublisher<[Profile], Never>?
+
+    /// True between `start()` and `stop()`. Checks and the one-shot timer do nothing otherwise.
+    private(set) var isRunning = false
+
+    /// Profiles with a check running. A trigger that overlaps a running check
+    /// for the same profile skips it, so one window is never pinged twice.
+    private var inFlight: Set<UUID> = []
+
+    /// `resets_at` of the open window last seen per profile, for the one-shot timer.
+    private var knownResetTimes: [UUID: Date] = [:]
+
+    // `locate()` is mutating and async. It runs on a copy so no access to the
+    // stored property spans a suspension, and concurrent callers share one lookup.
+    private var locator: ClaudeBinaryLocator
+    private var locatorLookup: Task<String?, Never>?
+    private var locatorGeneration = 0
+
+    init(
+        runner: ClaudeProcessRunning = ClaudeProcessRunner(),
+        locator: ClaudeBinaryLocator? = nil,
+        now: @escaping () -> Date = Date.init,
+        calendar: Calendar = .autoupdatingCurrent,
+        defaults: UserDefaults = .standard,
+        loginResolver: ((Profile) -> Result<AutoStartLogin, AutoStartSkipReason>)? = nil,
+        usageReader: ((Profile, AutoStartLogin) async -> AutoStartUsageReading)? = nil,
+        profiles: (() -> [Profile])? = nil,
+        profileChanges: AnyPublisher<[Profile], Never>? = nil
+    ) {
         self.profileManager = ProfileManager.shared
         self.notificationManager = NotificationManager.shared
+        self.runner = runner
+        self.locator = locator ?? .live()
+        self.now = now
+        self.calendar = calendar
+        self.attemptStore = AutoStartAttemptStore(defaults: defaults)
+        self.statusStore = AutoStartStatusStore(defaults: defaults)
+        self.injectedLoginResolver = loginResolver
+        self.injectedUsageReader = usageReader
+        self.injectedProfiles = profiles
+        self.injectedProfileChanges = profileChanges
     }
 
     // MARK: - Lifecycle
 
     func start() {
+        isRunning = true
         // Start 5-minute check timer with tolerance for energy efficiency
         let timer = Timer.scheduledTimer(
             withTimeInterval: 300, // 5 minutes
@@ -65,7 +124,10 @@ final class AutoStartSessionService {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                LoggingService.shared.logInfo("Mac woke from sleep - checking for session resets")
+                LoggingService.shared.logInfo("Mac woke from sleep - checking auto-start profiles")
+                // Timers do not fire during sleep; re-arm before the check in
+                // case the check is debounced.
+                self.armOneShotTimer()
                 await self.performCheckIfNeeded(source: "wake")
             }
         }
@@ -78,7 +140,19 @@ final class AutoStartSessionService {
             LoggingService.shared.logDebug("Mac going to sleep")
         }
 
-        LoggingService.shared.logInfo("AutoStartSessionService started (5-minute cycle + wake detection)")
+        // Only the fields that move the one-shot date; usage saves also publish
+        // `profiles` and are ignored. Delivered on the next main-queue turn because
+        // `@Published` emits before the new value is stored.
+        profileChangeObserver = (injectedProfileChanges ?? profileManager.$profiles.eraseToAnyPublisher())
+            .map { $0.map(ScheduleInputs.init) }
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.armOneShotTimer()
+            }
+
+        LoggingService.shared.logInfo("AutoStartSessionService started (5-minute cycle, schedule timer, wake detection)")
 
         // Perform immediate initial check to populate state
         Task { @MainActor in
@@ -87,8 +161,12 @@ final class AutoStartSessionService {
     }
 
     func stop() {
+        isRunning = false
         checkTimer?.invalidate()
         checkTimer = nil
+        oneShotTimer?.invalidate()
+        oneShotTimer = nil
+        profileChangeObserver = nil
 
         // Remove observers
         if let wakeObserver = wakeObserver {
@@ -106,140 +184,304 @@ final class AutoStartSessionService {
     // MARK: - Profile Checking
 
     /// Performs check with debouncing to prevent duplicate checks
-    private func performCheckIfNeeded(source: String) async {
+    func performCheckIfNeeded(source: String) async {
+        guard isRunning else { return }
+        // Re-arm even when debounced: the trigger may have been the one-shot timer.
+        // A check still running when `stop()` is called does not re-arm (see `armOneShotTimer`).
+        defer { armOneShotTimer() }
+
         // Debounce: Don't check if we checked less than 10 seconds ago
-        let timeSinceLastCheck = Date().timeIntervalSince(lastCheckTime)
+        let timeSinceLastCheck = now().timeIntervalSince(lastCheckTime)
         if timeSinceLastCheck < 10 {
             LoggingService.shared.logDebug("Skipping check from \(source) - checked \(Int(timeSinceLastCheck))s ago")
             return
         }
 
-        lastCheckTime = Date()
+        lastCheckTime = now()
         await checkAllProfiles(source: source)
     }
 
     private func checkAllProfiles(source: String) async {
         LoggingService.shared.logDebug("AutoStartSessionService: Checking all profiles for auto-start (source: \(source))")
 
-        // Get all profiles with auto-start enabled
-        let profilesWithAutoStart = profileManager.profiles.filter { $0.autoStartSessionEnabled }
-
-        guard !profilesWithAutoStart.isEmpty else {
+        let profiles = currentProfiles().filter(isEligible)
+        guard !profiles.isEmpty else {
             LoggingService.shared.logDebug("No profiles with auto-start enabled")
             return
         }
 
-        LoggingService.shared.logInfo("Checking \(profilesWithAutoStart.count) profile(s) with auto-start enabled")
-
-        // Check each profile
-        for profile in profilesWithAutoStart {
+        for profile in profiles {
             await checkProfile(profile)
         }
     }
 
-    private func checkProfile(_ profile: Profile) async {
-        // Explicit capability gate: auto-start burns tokens via the claude.ai
-        // conversation API — providers without it must be skipped by design,
-        // not just incidentally via the credentials check below.
+    private func currentProfiles() -> [Profile] {
+        injectedProfiles?() ?? profileManager.profiles
+    }
+
+    private func isEligible(_ profile: Profile) -> Bool {
+        profile.autoStartSessionEnabled && profile.provider.descriptor.capabilities.autoStartSession
+    }
+
+    /// Checks one profile and pings when it is in schedule and has no open window.
+    /// Internal so tests can run overlapping checks.
+    func checkProfile(_ profile: Profile) async {
+        // Explicit capability gate: auto-start spends tokens on the account,
+        // so providers without it are skipped by design.
         guard profile.provider.descriptor.capabilities.autoStartSession else {
             LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - provider does not support auto-start")
+            knownResetTimes.removeValue(forKey: profile.id)
+            return
+        }
+        guard profile.autoStartSessionEnabled else {
+            knownResetTimes.removeValue(forKey: profile.id)
             return
         }
 
-        // Skip if profile doesn't have Claude.ai credentials
-        guard profile.hasClaudeAI else {
-            LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - no Claude.ai credentials")
+        // Claim the profile before the first suspension point.
+        guard !inFlight.contains(profile.id) else {
+            LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - a check is already running")
             return
         }
+        inFlight.insert(profile.id)
+        defer { inFlight.remove(profile.id) }
+
+        let checkStart = now()
+        guard AutoStartSchedulePolicy.isInSchedule(profile.effectiveAutoStartSchedule, at: checkStart, calendar: calendar) else {
+            knownResetTimes.removeValue(forKey: profile.id)
+            logSkip(.outOfSchedule, for: profile, at: checkStart)
+            return
+        }
+
+        let login: AutoStartLogin
+        let (resolution, defaultCredentials) = resolveLogin(for: profile)
+        switch resolution {
+        case .success(let resolved):
+            login = resolved
+        case .failure(let reason):
+            knownResetTimes.removeValue(forKey: profile.id)
+            logSkip(reason, for: profile, at: checkStart)
+            return
+        }
+
+        let reading = await readUsage(for: profile, login: login, defaultCredentials: defaultCredentials)
+        let checkTime = now()
+
+        // Only a live reading says whether a window is open. Any other reading
+        // drops the remembered reset time, so a stale one cannot drive the
+        // one-shot timer.
+        knownResetTimes.removeValue(forKey: profile.id)
+        if case .live(let usage, let hasOpenWindow) = reading {
+            if hasOpenWindow {
+                knownResetTimes[profile.id] = usage.sessionResetTime
+            }
+            // A window seen open, or an account with no windows, ends the
+            // current run of attempts.
+            if hasOpenWindow || usage.hasNoUsageWindows {
+                attemptStore.clear(for: profile.id)
+            }
+        }
+
+        let attempt = AutoStartAttemptPolicy.decide(state: attemptStore.state(for: profile.id), now: checkTime)
+        switch AutoStartDecision.decide(inSchedule: true, reading: reading, attempt: attempt) {
+        case .skip(let reason):
+            logSkip(reason, for: profile, at: checkTime)
+        case .ping:
+            await ping(profile, login: login)
+        }
+    }
+
+    // MARK: - Ping
+
+    private func ping(_ profile: Profile, login: AutoStartLogin) async {
+        guard let executable = await locateBinary() else {
+            let at = now()
+            if statusStore.shouldLog(.binaryNotFound, for: profile.id, now: at, calendar: calendar) {
+                let message = Self.describe(.binaryNotFound)
+                LoggingService.shared.logError("Auto-start for '\(profile.name)' failed: \(message)")
+                recordResult(AutoStartResult(date: at, success: false, message: message), for: profile)
+            }
+            return
+        }
+
+        // Count the attempt before launching, so a crash or quit mid-run still counts.
+        let launchTime = now()
+        let counted = AutoStartAttemptPolicy.stateAfterAttempt(attemptStore.state(for: profile.id), now: launchTime)
+        attemptStore.save(counted, for: profile.id)
+        LoggingService.shared.logInfo("Auto-start: running claude for '\(profile.name)' (attempt \(counted.attempts))")
+
+        let output = await runner.run(
+            executable: executable,
+            arguments: ClaudeCLIPing.arguments,
+            environment: ClaudeCLIPing.environment(
+                for: login,
+                executable: executable,
+                base: ProcessInfo.processInfo.environment
+            ),
+            workingDirectory: Self.pingWorkingDirectory(),
+            timeout: Self.pingTimeout
+        )
+        if output.exitCode == -1 {
+            // Launch failed: the binary may have moved (self-update, Homebrew upgrade).
+            invalidateBinary()
+        }
+
+        switch ClaudeCLIPing.parseResult(exitCode: output.exitCode, stdout: output.stdout, timedOut: output.timedOut) {
+        case .success:
+            LoggingService.shared.logInfo("Auto-start opened a session window for '\(profile.name)'")
+            recordResult(AutoStartResult(date: launchTime, success: true, message: nil), for: profile)
+        case .failure(let failure):
+            LoggingService.shared.logError("Auto-start for '\(profile.name)' failed: \(failure.message)")
+            recordResult(AutoStartResult(date: launchTime, success: false, message: failure.message), for: profile)
+            if counted.attempts >= AutoStartAttemptPolicy.maxAttempts {
+                let hours = Int(AutoStartAttemptPolicy.pauseAfterMaxAttempts / 3600)
+                LoggingService.shared.logWarning("Profile '\(profile.name)': \(counted.attempts) auto-start attempts without an open session window - pausing auto-start for \(hours)h")
+            }
+        }
+    }
+
+    /// Saves the result for the settings view and sends the existing notification.
+    private func recordResult(_ result: AutoStartResult, for profile: Profile) {
+        statusStore.saveResult(result, for: profile.id)
+        notificationManager.sendAutoStartNotification(
+            profileName: profile.name,
+            success: result.success,
+            error: result.message,
+            settings: profile.notificationSettings
+        )
+    }
+
+    /// An empty directory, so the CLI picks up no project `CLAUDE.md` or settings.
+    private static func pingWorkingDirectory() -> URL {
+        let fileManager = FileManager.default
+        let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first ?? fileManager.temporaryDirectory
+        let directory = caches
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.devondragon.ClaudeUsage", isDirectory: true)
+            .appendingPathComponent("AutoStartPing", isDirectory: true)
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    // MARK: - Binary Lookup
+
+    private func locateBinary() async -> String? {
+        if let running = locatorLookup {
+            return await running.value
+        }
+        let generation = locatorGeneration
+        let lookup = Task { @MainActor () -> String? in
+            var copy = self.locator
+            let path = await copy.locate()
+            // Keep the copy's cache only if nothing invalidated the locator meanwhile.
+            if generation == self.locatorGeneration {
+                self.locator = copy
+            }
+            return path
+        }
+        locatorLookup = lookup
+        let path = await lookup.value
+        locatorLookup = nil
+        return path
+    }
+
+    private func invalidateBinary() {
+        locatorGeneration += 1
+        locator.invalidate()
+    }
+
+    // MARK: - Login and Usage
+
+    /// The profile's login, plus the default login's credentials JSON when it
+    /// was read, so the usage read does not run `security` a second time.
+    private func resolveLogin(for profile: Profile) -> (Result<AutoStartLogin, AutoStartSkipReason>, defaultCredentials: String?) {
+        if let injectedLoginResolver { return (injectedLoginResolver(profile), nil) }
+
+        let sync = ClaudeCodeSyncService.shared
+        // The default login's credentials and account matter only for a profile
+        // that is not linked to its own config dir; skip the reads otherwise.
+        let linked = sync.pinnedConfigDirService(of: profile) != nil
+        let defaultCredentials: String? = linked ? nil : ((try? sync.readSystemCredentials()) ?? nil)
+        let result = ClaudeCLIPing.resolveLogin(
+            customKeychainService: profile.customKeychainServiceName,
+            profileAccountJSON: profile.oauthAccountJSON,
+            // The ping removes CLAUDE_CONFIG_DIR, so compare against ~/.claude.json
+            // even when the app itself was launched with that variable set.
+            defaultAccountJSON: linked ? nil : sync.readDefaultLoginOAuthAccount(),
+            hasCliCredentials: defaultCredentials != nil,
+            configDirPath: { sync.configDirPath(forKeychainService: $0) }
+        )
+        return (result, defaultCredentials)
+    }
+
+    private func readUsage(for profile: Profile, login: AutoStartLogin, defaultCredentials: String?) async -> AutoStartUsageReading {
+        if let injectedUsageReader { return await injectedUsageReader(profile, login) }
+
+        if profile.hasClaudeAI {
+            do {
+                let (usage, hasOpenWindow) = try await fetchUsageWithCookie(for: profile)
+                // Accounts without usage windows are not saved: claude.ai's
+                // response carries no spend, and saving it would drop the spend
+                // the main refresh stored.
+                if !usage.hasNoUsageWindows {
+                    profileManager.saveClaudeUsage(
+                        usage.respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled),
+                        for: profile.id
+                    )
+                }
+                return .live(usage, hasOpenWindow: hasOpenWindow)
+            } catch {
+                LoggingService.shared.logDebug("Auto-start: claude.ai usage read failed for '\(profile.name)' (\(error.localizedDescription)); trying the Claude Code token")
+            }
+        }
+
+        return await readUsageWithClaudeCodeToken(login: login, defaultCredentials: defaultCredentials)
+    }
+
+    /// Reads usage with the login's current access token. Never refreshes the
+    /// token: the CLI owns it and refreshes it when the ping runs.
+    private func readUsageWithClaudeCodeToken(login: AutoStartLogin, defaultCredentials: String?) async -> AutoStartUsageReading {
+        let sync = ClaudeCodeSyncService.shared
+        let credentials: String?
+        switch login {
+        case .defaultLogin:
+            // Read once during login resolution; the default login is chosen only when it was found.
+            credentials = defaultCredentials
+        case .configDir(_, let keychainService):
+            credentials = sync.readKeychainCredentials(serviceName: keychainService)
+        }
+        guard let credentials else {
+            return .failed("could not read Claude Code credentials")
+        }
+        if sync.isTokenExpired(credentials) { return .tokenExpired }
+        guard let token = sync.extractAccessToken(from: credentials) else { return .tokenExpired }
+
+        var request = URLRequest(url: Self.oauthUsageURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
-            // Fetch current usage for this profile
-            let (usage, hasOpenWindow) = try await fetchUsageData(for: profile)
-
-            // Accounts without usage windows (Enterprise seats) have no session
-            // to start; 0% and no open window would otherwise trigger an attempt
-            // on every check. Their usage is not saved either: claude.ai's
-            // response carries no spend, and saving it would drop the spend the
-            // main refresh stored.
-            guard !Self.shouldSkipAutoStart(usage) else {
-                attemptStore.clear(for: profile.id)
-                LoggingService.shared.logDebug("Skipping profile '\(profile.name)' - account has no session or weekly window")
-                return
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .failed("invalid response from the usage endpoint")
             }
-
-            // Save usage to profile
-            profileManager.saveClaudeUsage(
-                usage.respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled),
-                for: profile.id
-            )
-
-            let currentPercentage = usage.effectiveSessionPercentage
-
-            // A session window that is open but unused reads 0% — often for
-            // hours, because the initialization message (and light real usage)
-            // rounds down to zero. Starting one then spends a request, and
-            // leaves an empty conversation behind, to open something already
-            // running. The in-memory `lastCapturedResetTime` guard below covers
-            // the same run, but is lost across app restarts and never set for
-            // windows the user opened themselves. Gating on the live reset time
-            // from the API closes both gaps: only a window with no current
-            // `resets_at` is genuinely waiting to be opened.
-            if currentPercentage == 0.0 && !hasOpenWindow {
-                // Check if we recently auto-started and should wait for reset
-                if let lastResetTime = lastCapturedResetTime[profile.id],
-                   Date() < lastResetTime {
-                    let minutesRemaining = Int(lastResetTime.timeIntervalSinceNow / 60)
-                    LoggingService.shared.logDebug("Profile '\(profile.name)': skipping auto-start - \(minutesRemaining)m until session reset")
-                    return
-                }
-
-                // Bound retries when attempts keep failing, or succeed without
-                // opening a window (upstream #334). Only attempts that created a
-                // conversation count, so a network or server error before that
-                // point cannot trigger the pause. The count is saved as soon as
-                // the conversation exists, so a crash or quit mid-attempt still
-                // counts.
-                let now = Date()
-                let previous = attemptStore.state(for: profile.id)
-                if case .wait(let until) = AutoStartAttemptPolicy.decide(state: previous, now: now) {
-                    let minutes = Int(until.timeIntervalSince(now) / 60)
-                    LoggingService.shared.logDebug("Profile '\(profile.name)': auto-start backing off after \(previous?.attempts ?? 0) attempt(s) - next try in \(minutes)m")
-                    return
-                }
-
-                LoggingService.shared.logInfo("Session at 0% for profile '\(profile.name)' - triggering auto-start")
-
-                var counted: AutoStartAttemptState?
-                let started = await autoStartSession(for: profile) {
-                    let state = AutoStartAttemptPolicy.stateAfterAttempt(previous, now: now)
-                    attemptStore.save(state, for: profile.id)
-                    counted = state
-                }
-
-                if !started, let counted, counted.attempts >= AutoStartAttemptPolicy.maxAttempts {
-                    let hours = Int(AutoStartAttemptPolicy.pauseAfterMaxAttempts / 3600)
-                    LoggingService.shared.logWarning("Profile '\(profile.name)': \(counted.attempts) auto-start attempts without an open session window - pausing auto-start for \(hours)h")
-                }
-            } else {
-                // Session is active, clear any tracked reset time since usage endpoint is now showing correct data
-                lastCapturedResetTime.removeValue(forKey: profile.id)
-                attemptStore.clear(for: profile.id)
-                LoggingService.shared.logDebug("Profile '\(profile.name)': session at \(currentPercentage)% (window \(hasOpenWindow ? "open" : "closed"))")
+            switch http.statusCode {
+            case 200:
+                let (usage, hasOpenWindow) = try Self.parseUsageResponse(data, now: now())
+                return .live(usage, hasOpenWindow: hasOpenWindow)
+            case 401, 403:
+                return .tokenExpired
+            default:
+                return .failed("usage endpoint returned status \(http.statusCode)")
             }
-
         } catch {
-            LoggingService.shared.logError("Failed to check profile '\(profile.name)': \(error.localizedDescription)")
+            return .failed(error.localizedDescription)
         }
     }
 
-    /// No 5-hour block and no weekly limit: nothing to auto-start. A null
-    /// five_hour block alone is not enough, since idle Max and Pro accounts
-    /// report it too.
-    static func shouldSkipAutoStart(_ usage: ClaudeUsage) -> Bool {
-        usage.hasNoUsageWindows
-    }
-
-    private func fetchUsageData(for profile: Profile) async throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
+    private func fetchUsageWithCookie(for profile: Profile) async throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
         // Get credentials from the specific profile
         guard let sessionKey = profile.claudeSessionKey,
               let orgId = profile.organizationId else {
@@ -275,11 +517,12 @@ final class AutoStartSessionService {
             )
         }
 
-        // Parse usage response
-        return try Self.parseUsageResponse(data)  // (usage, hasOpenWindow)
+        return try Self.parseUsageResponse(data, now: now())
     }
 
-    static func parseUsageResponse(_ data: Data) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
+    // MARK: - Usage Parsing
+
+    static func parseUsageResponse(_ data: Data, now: Date = Date()) throws -> (usage: ClaudeUsage, hasOpenWindow: Bool) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AppError(code: .apiParsingFailed, message: "Failed to parse usage data", isRecoverable: false)
         }
@@ -289,11 +532,11 @@ final class AutoStartSessionService {
         var sessionResetTime = Date().addingTimeInterval(5 * 3600)
 
         // Whether a window is currently open, as opposed to merely unused. The
-        // API omits `resets_at` when no window is running; when one is running
-        // it is present and in the future. Percentage alone cannot tell these
-        // apart, since an open window reads 0% until usage accrues past
-        // rounding. `sessionResetTime` above is synthesised when absent, so it
-        // cannot carry this signal — hence a separate flag.
+        // API omits `resets_at` (or sends null) when no window is running; when
+        // one is running it is present and in the future. Percentage alone
+        // cannot tell these apart, since an open window reads 0% until usage
+        // accrues past rounding. `sessionResetTime` above is synthesized when
+        // absent, so it cannot carry this signal, hence a separate flag.
         var hasOpenWindow = false
 
         if let fiveHour = json["five_hour"] as? [String: Any] {
@@ -301,10 +544,14 @@ final class AutoStartSessionService {
                 sessionPercentage = parseUtilization(utilization)
             }
             if let resetsAt = fiveHour["resets_at"] as? String {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                sessionResetTime = formatter.date(from: resetsAt) ?? sessionResetTime
-                hasOpenWindow = sessionResetTime > Date()
+                if let parsed = parseResetDate(resetsAt) {
+                    sessionResetTime = parsed
+                    hasOpenWindow = parsed > now
+                } else {
+                    // Present but in an unknown format: assume a window is open
+                    // rather than risk starting a second one.
+                    hasOpenWindow = true
+                }
             }
         }
 
@@ -316,10 +563,8 @@ final class AutoStartSessionService {
             if let utilization = sevenDay["utilization"] {
                 weeklyPercentage = parseUtilization(utilization)
             }
-            if let resetsAt = sevenDay["resets_at"] as? String {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                weeklyResetTime = formatter.date(from: resetsAt) ?? weeklyResetTime
+            if let resetsAt = sevenDay["resets_at"] as? String, let parsed = parseResetDate(resetsAt) {
+                weeklyResetTime = parsed
             }
         }
 
@@ -339,9 +584,7 @@ final class AutoStartSessionService {
                 sonnetPercentage = parseUtilization(utilization)
             }
             if let resetsAt = sevenDaySonnet["resets_at"] as? String {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                sonnetResetTime = formatter.date(from: resetsAt)
+                sonnetResetTime = parseResetDate(resetsAt)
             }
         }
 
@@ -392,6 +635,17 @@ final class AutoStartSessionService {
         return (usage, hasOpenWindow)
     }
 
+    /// ISO 8601 `resets_at`. The OAuth endpoint sends some with fractional
+    /// seconds ("2026-11-03T02:10:00.133519+00:00") and some without
+    /// ("2026-11-09T10:00:00+00:00"), so both are accepted.
+    static func parseResetDate(_ string: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: string) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: string)
+    }
+
     private static func parseUtilization(_ value: Any) -> Double {
         if let intValue = value as? Int {
             return Double(intValue)
@@ -409,192 +663,109 @@ final class AutoStartSessionService {
         return 0.0
     }
 
-    /// Parse the completion response (SSE format) to extract session reset time from messageLimit.windows.5h
-    private func parseCompletionResponseForResetTime(_ data: Data) -> Date? {
-        guard let responseString = String(data: data, encoding: .utf8) else { return nil }
+    // MARK: - One-Shot Timer
 
-        // The response is SSE format - find the last completion event with messageLimit data
-        let lines = responseString.components(separatedBy: "\n")
-        for line in lines.reversed() {
-            if line.hasPrefix("data: "),
-               let jsonStart = line.index(line.startIndex, offsetBy: 6, limitedBy: line.endIndex),
-               let jsonData = String(line[jsonStart...]).data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-               let messageLimit = json["messageLimit"] as? [String: Any],
-               let windows = messageLimit["windows"] as? [String: Any],
-               let fiveH = windows["5h"] as? [String: Any],
-               let resetsAt = fiveH["resets_at"] as? Double {
-                return Date(timeIntervalSince1970: resetsAt)
+    /// Schedules a check at the next schedule start or open-window reset, so a
+    /// start lands on time instead of up to 5 minutes late.
+    private func armOneShotTimer() {
+        oneShotTimer?.invalidate()
+        oneShotTimer = nil
+        guard isRunning, let fireDate = nextOneShotDate() else { return }
+
+        let timer = Timer(fire: fireDate, interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.performCheckIfNeeded(source: "scheduled")
             }
         }
-        return nil
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        oneShotTimer = timer
+        LoggingService.shared.logDebug("Auto-start: next scheduled check at \(fireDate)")
     }
 
-    // MARK: - Auto-Start Session
+    /// When the one-shot timer should fire for the current profiles. Reset times
+    /// already past are ignored; the repeating check covers those.
+    func nextOneShotDate() -> Date? {
+        let current = now()
+        let profiles = currentProfiles().filter(isEligible)
+        let resets = profiles
+            .filter { AutoStartSchedulePolicy.isInSchedule($0.effectiveAutoStartSchedule, at: current, calendar: calendar) }
+            .compactMap { knownResetTimes[$0.id] }
+            .filter { $0 > current }
+        return Self.nextCheckDate(
+            now: current,
+            schedules: profiles.map(\.effectiveAutoStartSchedule),
+            openWindowResets: resets,
+            calendar: calendar
+        )
+    }
 
-    /// Returns true when the initialization message was sent successfully.
-    /// `onConversationCreated` runs once the temporary conversation exists.
-    @discardableResult
-    private func autoStartSession(for profile: Profile, onConversationCreated: () -> Void = {}) async -> Bool {
-        do {
-            // Call the initialization API for this profile and get response data
-            let responseData = try await sendInitializationMessage(for: profile, onConversationCreated: onConversationCreated)
+    /// The profile fields that decide when the one-shot timer fires.
+    private struct ScheduleInputs: Equatable {
+        let id: UUID
+        let enabled: Bool
+        let schedule: AutoStartSchedule
 
-            // Capture reset time from response to prevent duplicate auto-starts
-            if let resetTime = parseCompletionResponseForResetTime(responseData) {
-                lastCapturedResetTime[profile.id] = resetTime
-                LoggingService.shared.logInfo("Captured session reset time for '\(profile.name)': \(resetTime)")
-            }
-
-            LoggingService.shared.logInfo("Successfully auto-started session for profile '\(profile.name)'")
-
-            // Send success notification
-            await MainActor.run {
-                notificationManager.sendAutoStartNotification(
-                    profileName: profile.name,
-                    success: true,
-                    error: nil,
-                    settings: profile.notificationSettings
-                )
-            }
-            return true
-
-        } catch {
-            LoggingService.shared.logError("Failed to auto-start session for profile '\(profile.name)': \(error.localizedDescription)")
-
-            // Send failure notification
-            await MainActor.run {
-                notificationManager.sendAutoStartNotification(
-                    profileName: profile.name,
-                    success: false,
-                    error: error.localizedDescription,
-                    settings: profile.notificationSettings
-                )
-            }
-            return false
+        init(_ profile: Profile) {
+            id = profile.id
+            enabled = profile.autoStartSessionEnabled
+            schedule = profile.effectiveAutoStartSchedule
         }
     }
 
-    /// Headers claude.ai expects on chat requests, matching a Safari session.
-    /// Without them Cloudflare or CSRF checks can reject the request.
-    private static func applyBrowserHeaders(to request: inout URLRequest, sessionKey: String) {
-        if let url = request.url {
-            request.setValue(ClaudeAPIService.sessionCookieHeader(sessionKey: sessionKey, url: url), forHTTPHeaderField: "Cookie")
-        }
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
-        request.setValue("https://claude.ai", forHTTPHeaderField: "Referer")
-        request.setValue("https://claude.ai", forHTTPHeaderField: "Origin")
+    /// Whether a one-shot check is scheduled. For tests.
+    var hasPendingOneShot: Bool { oneShotTimer != nil }
+
+    /// Earliest of each schedule's next start and each open window's reset plus
+    /// `resetSlack`, but never sooner than `minimumTimerDelay` from now. Nil when
+    /// there is nothing to wait for.
+    static func nextCheckDate(
+        now: Date,
+        schedules: [AutoStartSchedule],
+        openWindowResets: [Date],
+        calendar: Calendar
+    ) -> Date? {
+        let starts = schedules.map { AutoStartSchedulePolicy.nextStart(after: now, schedule: $0, calendar: calendar) }
+        let resets = openWindowResets.map { $0.addingTimeInterval(resetSlack) }
+        guard let earliest = (starts + resets).min() else { return nil }
+        return max(earliest, now.addingTimeInterval(minimumTimerDelay))
     }
 
-    private func sendInitializationMessage(for profile: Profile, onConversationCreated: () -> Void) async throws -> Data {
-        guard let sessionKey = profile.claudeSessionKey,
-              let orgId = profile.organizationId else {
-            throw AppError(
-                code: .sessionKeyNotFound,
-                message: "Missing credentials",
-                isRecoverable: false
-            )
-        }
+    // MARK: - Logging
 
-        // Create a new conversation
-        let conversationURL = try URLBuilder(baseURL: Constants.APIEndpoints.claudeBase)
-            .appendingPathComponents(["/organizations", orgId, "/chat_conversations"])
-            .build()
-
-        var conversationRequest = URLRequest(url: conversationURL)
-        Self.applyBrowserHeaders(to: &conversationRequest, sessionKey: sessionKey)
-        conversationRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        conversationRequest.httpMethod = "POST"
-
-        let requestedUUID = UUID().uuidString.lowercased()
-        let conversationBody: [String: Any] = [
-            "uuid": requestedUUID,
-            "name": ""
-        ]
-        conversationRequest.httpBody = try JSONSerialization.data(withJSONObject: conversationBody)
-
-        let (conversationData, conversationResponse) = try await URLSession.shared.data(for: conversationRequest)
-
-        guard let httpResponse = conversationResponse as? HTTPURLResponse,
-              (httpResponse.statusCode == 200 || httpResponse.statusCode == 201) else {
-            throw AppError(code: .apiGenericError, message: "Failed to create conversation", isRecoverable: true)
-        }
-
-        onConversationCreated()
-
-        // The conversation exists now. If the response cannot be parsed, fall
-        // back to the UUID we asked for, so it can still be used and deleted.
-        let json = try? JSONSerialization.jsonObject(with: conversationData) as? [String: Any]
-        let conversationUUID: String
-        if let parsed = json?["uuid"] as? String {
-            conversationUUID = parsed
+    /// Out of schedule logs at debug. Other reasons log at info the first time
+    /// they are seen for the profile each day, and at debug after that.
+    private func logSkip(_ reason: AutoStartSkipReason, for profile: Profile, at date: Date) {
+        let message = "Auto-start skipped for '\(profile.name)': \(Self.describe(reason))"
+        if case .outOfSchedule = reason {
+            LoggingService.shared.logDebug(message)
+        } else if statusStore.shouldLog(reason, for: profile.id, now: date, calendar: calendar) {
+            LoggingService.shared.logInfo(message)
         } else {
-            LoggingService.shared.logWarning("Auto-start could not parse the conversation response; using the requested UUID")
-            conversationUUID = requestedUUID
+            LoggingService.shared.logDebug(message)
         }
-
-        // Send a minimal "Hi" message to initialize the session
-        let messageURL = try URLBuilder(baseURL: Constants.APIEndpoints.claudeBase)
-            .appendingPathComponents(["/organizations", orgId, "/chat_conversations", conversationUUID, "/completion"])
-            .build()
-
-        var messageRequest = URLRequest(url: messageURL)
-        Self.applyBrowserHeaders(to: &messageRequest, sessionKey: sessionKey)
-        messageRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        messageRequest.httpMethod = "POST"
-
-        let messageBody: [String: Any] = [
-            "prompt": "Hi",
-            "model": "claude-haiku-4-5-20251001",  // Ensures non-zero usage to prevent duplicate auto-starts
-            "timezone": "UTC"
-        ]
-        messageRequest.httpBody = try JSONSerialization.data(withJSONObject: messageBody)
-
-        // From here on the conversation exists. Delete it whether or not the
-        // message goes through, so a failed send does not leave an empty chat
-        // in the account's history (upstream #334).
-        let messageData: Data
-        do {
-            let (data, messageResponse) = try await URLSession.shared.data(for: messageRequest)
-
-            guard let messageHTTPResponse = messageResponse as? HTTPURLResponse,
-                  messageHTTPResponse.statusCode == 200 else {
-                let status = (messageResponse as? HTTPURLResponse)?.statusCode ?? -1
-                let snippet = String(decoding: data.prefix(300), as: UTF8.self)
-                LoggingService.shared.logError("Auto-start initialization message failed with status \(status): \(snippet)")
-                throw AppError(code: .apiGenericError, message: "Failed to send initialization message (status \(status))", isRecoverable: true)
-            }
-            messageData = data
-        } catch {
-            await deleteConversation(conversationUUID, orgId: orgId, sessionKey: sessionKey)
-            throw error
-        }
-
-        // Delete the conversation to keep it out of chat history (incognito mode)
-        await deleteConversation(conversationUUID, orgId: orgId, sessionKey: sessionKey)
-
-        return messageData
     }
 
-    /// Deletes a temporary conversation. Failure is logged, not thrown: the
-    /// caller's result (session started or not) does not depend on it.
-    private func deleteConversation(_ conversationUUID: String, orgId: String, sessionKey: String) async {
-        do {
-            let deleteURL = try URLBuilder(baseURL: Constants.APIEndpoints.claudeBase)
-                .appendingPathComponents(["/organizations", orgId, "/chat_conversations", conversationUUID])
-                .build()
-
-            var deleteRequest = URLRequest(url: deleteURL)
-            Self.applyBrowserHeaders(to: &deleteRequest, sessionKey: sessionKey)
-            deleteRequest.httpMethod = "DELETE"
-
-            let (_, response) = try await URLSession.shared.data(for: deleteRequest)
-            if let status = (response as? HTTPURLResponse)?.statusCode, !(200..<300).contains(status) {
-                LoggingService.shared.logWarning("Auto-start could not delete temporary conversation \(conversationUUID): status \(status)")
-            }
-        } catch {
-            LoggingService.shared.logWarning("Auto-start could not delete temporary conversation \(conversationUUID): \(error.localizedDescription)")
+    static func describe(_ reason: AutoStartSkipReason) -> String {
+        switch reason {
+        case .outOfSchedule:
+            return "outside the auto-start schedule"
+        case .noUsageWindows:
+            return "the account has no session or weekly window"
+        case .windowOpen(let until):
+            return until.map { "a session window is already open until \($0)" } ?? "a session window is already open"
+        case .weeklyLimitReached:
+            return "the weekly limit is used up"
+        case .backingOff(let until):
+            return "earlier attempts did not open a window; next try after \(until)"
+        case .usageFetchFailed(let message):
+            return "could not read usage (\(message))"
+        case .noClaudeCodeLogin:
+            return "no Claude Code login for this profile"
+        case .accountMismatch:
+            return "the default Claude Code login is a different account"
+        case .binaryNotFound:
+            return "the claude command was not found"
         }
     }
 }

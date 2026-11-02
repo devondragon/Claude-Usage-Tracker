@@ -123,8 +123,6 @@
 /* ==================== */
 /* MARK: - Session Management */
 /* ==================== */
-"session.auto_start" = "Sıfırlamada oturumu otomatik başlat";
-"session.auto_start.description" = "Oturumunuz %0'a sıfırlandığında Claude'a otomatik olarak 'Merhaba' gönderin. Bu, oturumunuzu manuel müdahale olmadan her zaman hazır tutar.";
 "session.enable_auto_start" = "Otomatik oturum başlatmayı etkinleştir";
 "session.beta_badge" = "BETA";
 
@@ -156,7 +154,7 @@
 "setup.instruction.step4" = "Değerine çift tıklayın ve kopyalayın (Cmd+C)";
 "setup.paste_session_key" = "Kopyaladığınız sessionKey değerini yapıştırın";
 "setup.auto_start_session" = "Sıfırlamada oturumu otomatik başlat";
-"setup.auto_start_session.description" = "Oturumunuz %0'a sıfırlandığında Claude 3.5 Haiku'ya otomatik olarak 'Merhaba' gönderin. Bu, oturumunuzu manuel müdahale olmadan her zaman hazır tutar.";
+"setup.auto_start_session.description" = "Programınız boyunca Claude Code üzerinden tek kelimelik bir mesaj göndererek 5 saatlik oturum penceresini açık tutar. Program, profil ayarlarından belirlenir.";
 "setup.enable_auto_start" = "Otomatik oturum başlatmayı etkinleştir";
 "setup.menubar_appearance" = "Menü Çubuğu Görünümü";
 "setup.choose_icon_style" = "Tercih ettiğiniz simge stilini seçin";
@@ -565,8 +563,15 @@
 "general.autostart_title" = "Oturumu Otomatik Başlat";
 "general.autostart_subtitle" = "Gerektiğinde otomatik olarak yeni bir oturum başlat";
 "general.autostart_toggle" = "Yeni Oturumu Otomatik Başlat";
-"general.autostart_description" = "Oturum sıfırlandığında otomatik olarak mesaj gönder";
-"general.autostart_requirement" = "• Kimlik Bilgileri → Claude.ai sekmesinde oturum anahtarı yapılandırılmış olmalı";
+"general.autostart_description" = "Programınız boyunca Claude Code üzerinden tek kelimelik bir mesaj göndererek 5 saatlik oturum penceresini açık tutar.";
+"general.autostart_requirement" = "• Claude Code bu hesapta oturum açmış olmalı (bağlı bir yapılandırma dizini veya varsayılan oturum)";
+"general.autostart_weekdays" = "Hafta içi";
+"general.autostart_weekends" = "Hafta sonu";
+"general.autostart_start" = "Başlangıç";
+"general.autostart_stop" = "Bitiş";
+"general.autostart_last_success" = "Son başlatma %@";
+"general.autostart_last_failure" = "Son deneme başarısız %@: %@";
+"general.autostart_never" = "Henüz otomatik başlatma yok";
 "general.notifications_title" = "Bildirimler";
 "general.notifications_subtitle" = "Kullanım kilometre taşları hakkında bildirim al";
 "general.connected" = "Bağlı";
@@ -775,7 +780,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Claude Code mu Kullanıyorsunuz?";
-"wizard.claude_code_info_description" = "Kullanım takibi çalışacak, ancak CLI durum satırı ve otomatik oturum başlatma özelliği oturum anahtarı olmadan çalışmaz";
+"wizard.claude_code_info_description" = "Kullanım takibi çalışır. CLI durum satırı oturum anahtarı gerektirir; otomatik oturum başlatma yalnızca bu hesapla oturum açmış Claude Code gerektirir.";
 "wizard.claude_code_skip_setup" = "Kurulumu Atla";
 "wizard.migrate_description_short" = "Önceki uygulama sürümünden eski profil verilerinizi içe aktarın";
 

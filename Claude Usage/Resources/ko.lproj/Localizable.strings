@@ -162,8 +162,15 @@
 "general.autostart_title" = "세션 자동 시작";
 "general.autostart_subtitle" = "필요 시 자동으로 새 세션 시작";
 "general.autostart_toggle" = "새 세션 자동 시작";
-"general.autostart_description" = "세션 재설정 시 자동으로 메시지 전송";
-"general.autostart_requirement" = "• 자격 증명 → Claude.ai 탭에서 세션 키 구성됨";
+"general.autostart_description" = "일정 중에 Claude Code를 통해 한 단어 메시지를 보내 5시간 세션 창을 열어 둡니다.";
+"general.autostart_requirement" = "• 이 계정으로 Claude Code에 로그인되어 있어야 합니다(연결된 설정 디렉터리 또는 기본 로그인)";
+"general.autostart_weekdays" = "평일";
+"general.autostart_weekends" = "주말";
+"general.autostart_start" = "시작";
+"general.autostart_stop" = "종료";
+"general.autostart_last_success" = "마지막 시작 %@";
+"general.autostart_last_failure" = "마지막 시도 실패 %@: %@";
+"general.autostart_never" = "아직 자동 시작 없음";
 "general.notifications_title" = "알림";
 "general.notifications_subtitle" = "사용량 마일스톤 알림 받기";
 "general.connected" = "연결됨";
@@ -458,8 +465,6 @@
 /* ==================== */
 /* MARK: - Session Management (Additional) */
 /* ==================== */
-"session.auto_start" = "리셋 시 세션 자동 시작";
-"session.auto_start.description" = "세션이 0%로 리셋될 때 자동으로 Claude 3.5 Haiku에 '안녕하세요'를 전송합니다. 수동 개입 없이 세션을 항상 준비 상태로 유지합니다.";
 "session.enable_auto_start" = "세션 자동 시작 활성화";
 "session.beta_badge" = "베타";
 "session.subtitle" = "자동 세션 초기화 및 유지관리";
@@ -552,7 +557,7 @@
 "setup.instruction.step4" = "값을 더블클릭하고 복사 (Cmd+C)";
 "setup.paste_session_key" = "복사한 sessionKey 값을 붙여넣기";
 "setup.auto_start_session" = "리셋 시 세션 자동 시작";
-"setup.auto_start_session.description" = "세션이 0%로 리셋될 때 자동으로 Claude 3.5 Haiku에 '안녕하세요'를 전송합니다. 수동 개입 없이 세션을 항상 준비 상태로 유지합니다.";
+"setup.auto_start_session.description" = "일정 중에 Claude Code를 통해 한 단어 메시지를 보내 5시간 세션 창을 열어 둡니다. 일정은 프로필 설정에서 지정합니다.";
 "setup.enable_auto_start" = "세션 자동 시작 활성화";
 "setup.menubar_appearance" = "메뉴 바 외형";
 "setup.choose_icon_style" = "선호하는 아이콘 스타일 선택";
@@ -793,7 +798,7 @@
 
 /* Claude Code Info */
 "wizard.claude_code_info_title" = "Claude Code를 사용 중이신가요?";
-"wizard.claude_code_info_description" = "사용량 추적은 작동하지만, CLI 상태 표시줄과 자동 세션 시작은 세션 키 없이는 작동하지 않습니다";
+"wizard.claude_code_info_description" = "사용량 추적은 작동합니다. CLI 상태 표시줄에는 세션 키가 필요하며, 자동 세션 시작에는 이 계정으로 로그인한 Claude Code만 있으면 됩니다.";
 "wizard.claude_code_skip_setup" = "설정 건너뛰기";
 
 /* Migration Strings */
