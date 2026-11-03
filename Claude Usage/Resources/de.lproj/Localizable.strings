@@ -1122,3 +1122,18 @@
 "cc_accounts.empty" = "Keine angemeldeten Claude Code-Konfigurationsordner im Benutzerordner gefunden. Melde dich mit claude (oder CLAUDE_CONFIG_DIR=~/.claude-name claude) an und aktualisiere dann.";
 "cc_accounts.unknown_pin" = "Verknüpft mit %@, der im Benutzerordner nicht gefunden wurde.";
 "cc_accounts.linked_count" = "%d Profile verknüpft.";
+
+/* Theme */
+"section.theme_title" = "Design";
+"section.theme_desc" = "Aussehen von Menüleiste und Popover";
+"theme.title" = "Design";
+"theme.subtitle" = "Wähle, wie die Menüleisten-Symbole und das Popover aussehen. Gilt für alle Profile.";
+"theme.name.system" = "System";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "Phosphor";
+"theme.desc.system" = "Das normale macOS-Aussehen mit Systemfarben.";
+"theme.desc.grid" = "Schwarzes Glas und cyanfarbene Lichtlinien. Kritische Nutzung wird orange.";
+"theme.desc.night_city" = "Neongelb, Cyan und Rot mit abgeschrägten Ecken und segmentierten Balken.";
+"theme.desc.phosphor" = "Ein bernsteinfarbenes CRT-Terminal mit Rasterzeilen und Blockbalken.";
+"theme.footnote" = "Animationen sind aus, solange „Bewegung reduzieren“ in den Systemeinstellungen aktiv ist.";

@@ -353,6 +353,18 @@ class MenuBarManager: NSObject, ObservableObject {
             .store(in: &cancellables)
 
         LoggingService.shared.log("MenuBarManager: Observing profile changes (initial: \(initialProfileId?.uuidString ?? "nil"))")
+
+        // A theme change while the popover or detached window is open updates their
+        // forced appearance too; the SwiftUI content already follows ThemeManager.
+        ThemeManager.shared.$themeID
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.popover?.appearance = self.themeAppearance
+                self.detachedWindow?.appearance = self.themeAppearance
+            }
+            .store(in: &cancellables)
     }
 
     private func handleProfileSwitch(to profile: Profile) async {
@@ -605,6 +617,8 @@ class MenuBarManager: NSObject, ObservableObject {
     /// Shows `popover` anchored to a status bar button and gives its backing window
     /// the Space placement a menu bar popover needs to appear over a full-screen app.
     private func showPopover(_ popover: NSPopover, from button: NSStatusBarButton) {
+        // Themes with their own dark panel draw the popover chrome (arrow, edges) dark too.
+        popover.appearance = themeAppearance
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         if let window = popover.contentViewController?.view.window {
             window.enableDisplayOnFullScreenSpaces()
@@ -1687,6 +1701,12 @@ extension MenuBarManager: NSPopoverDelegate {
         lastPopoverCloseButton = currentPopoverButton
     }
 
+    /// Appearance for the popover and the detached window: Dark Aqua for themes that
+    /// draw their own dark panel, otherwise nil to follow the system.
+    private var themeAppearance: NSAppearance? {
+        ThemeManager.shared.current.forcesDarkAppearance ? NSAppearance(named: .darkAqua) : nil
+    }
+
     func detachableWindow(for popover: NSPopover) -> NSWindow? {
         // Stop monitoring for outside clicks when detaching
         stopMonitoringForOutsideClicks()
@@ -1724,6 +1744,7 @@ extension MenuBarManager: NSPopoverDelegate {
         window.isRestorable = false
         window.delegate = self
         window.backgroundColor = .clear
+        window.appearance = themeAppearance
 
         // Store reference to the detached window
         detachedWindow = window

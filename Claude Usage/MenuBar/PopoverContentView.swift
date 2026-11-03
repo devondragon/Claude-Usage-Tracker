@@ -66,8 +66,12 @@ struct PopoverContentView: View {
     // infinitely on macOS 26/27; this fades/scales the content in from the top
     // instead — a pure SwiftUI transform on a fixed-size view, so it can't trigger
     // the window-resize loop.
-    @State private var appeared = false
+    // 0 → 1 drives the theme's entrance animation (ThemedEntrance).
+    @State private var openProgress: CGFloat = 0
+
     @StateObject private var profileManager = ProfileManager.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private func profileInitials(for name: String) -> String {
         let words = name.split(separator: " ")
@@ -127,6 +131,13 @@ struct PopoverContentView: View {
 
             PopoverDivider()
 
+            if themeManager.current.showsReadout {
+                ThemedReadout(
+                    isHealthy: !manager.hasCredentialError && manager.consecutiveRefreshFailures == 0,
+                    lastUpdated: displayUsage.lastUpdated
+                )
+            }
+
             // Error / stale data banners
             if manager.hasCredentialError {
                 StatusBannerView(
@@ -178,17 +189,16 @@ struct PopoverContentView: View {
                     // Profile initials avatar
                     ZStack {
                         Circle()
-                            .fill(Color.accentColor.opacity(0.15))
+                            .fill(themeManager.current.accent.opacity(0.15))
                             .frame(width: 20, height: 20)
-
                         Text(profileInitials(for: viewingProfile.name))
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
-                            .foregroundColor(.accentColor)
+                            .font(themeManager.current.numberFont.font(size: 8, weight: .bold))
+                            .foregroundColor(themeManager.current.accent)
                     }
 
-                    Text(viewingProfile.name)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.primary)
+                    Text(themeManager.current.label(viewingProfile.name))
+                        .font(themeManager.current.bodyFont.font(size: 11, weight: .semibold))
+                        .foregroundColor(themeManager.current.textPrimary)
                         .lineLimit(1)
 
                     if viewingProfile.provider != .anthropic {
@@ -199,14 +209,14 @@ struct PopoverContentView: View {
                     Spacer()
 
                     if viewingProfile.id == profileManager.activeProfile?.id {
-                        Text("Active")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundColor(.accentColor)
+                        Text(themeManager.current.label("Active"))
+                            .font(themeManager.current.bodyFont.font(size: 8, weight: .semibold))
+                            .foregroundColor(themeManager.current.accent)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(
                                 Capsule()
-                                    .fill(Color.accentColor.opacity(0.12))
+                                    .fill(themeManager.current.accent.opacity(0.12))
                             )
                     }
                 }
@@ -235,13 +245,20 @@ struct PopoverContentView: View {
         }
         .padding(.bottom, 8)
         .frame(width: 280)
-        .background(VisualEffectBackground())
-        .opacity(appeared ? 1 : 0)
-        .scaleEffect(appeared ? 1 : 0.96, anchor: .top)
+        .background(ThemedPanelBackground())
+        .overlay(ThemedPanelBorder())
+        .themedPanelClip(themeManager.current)
+        .modifier(ThemedEntrance(
+            progress: openProgress,
+            style: reduceMotion ? .standard : themeManager.current.openAnimation,
+            traceColor: themeManager.current.accent
+        ))
+        .environment(\.appTheme, themeManager.current)
         .onAppear {
-            appeared = false
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                appeared = true
+            openProgress = 0
+            let style = reduceMotion ? .standard : themeManager.current.openAnimation
+            withAnimation(style.animation) {
+                openProgress = 1
             }
         }
     }
@@ -251,8 +268,7 @@ struct PopoverContentView: View {
 
 struct PopoverDivider: View {
     var body: some View {
-        Divider()
-            .padding(.horizontal, 16)
+        ThemedDivider()
     }
 }
 
@@ -260,6 +276,7 @@ struct PopoverDivider: View {
 
 struct ProfileSwitcherCompact: View {
     @StateObject private var profileManager = ProfileManager.shared
+    @Environment(\.appTheme) private var theme
     @State private var isHovered = false
     let onManageProfiles: () -> Void
 
@@ -319,9 +336,12 @@ struct ProfileSwitcherCompact: View {
                 }
             }
         } label: {
-            Text(profileManager.activeProfile?.name ?? "popover.no_profile".localized)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.primary)
+            // Text only: an AppKit-backed Menu label can drop other views.
+            Text((theme.profilePrefix ?? "") + theme.label(profileManager.activeProfile?.name ?? "popover.no_profile".localized))
+                .font(theme.titleFont.font(size: 13, weight: .bold))
+                .tracking(theme.titleTracking * 0.6)
+                .foregroundColor(theme.headerText ?? theme.textPrimary)
+                .shadow(color: theme.glow ? theme.accent.opacity(0.7) : .clear, radius: 5)
                 .lineLimit(1)
         }
         .menuStyle(.borderlessButton)
@@ -480,15 +500,10 @@ struct SmartHeader: View {
     var clickedProfileId: UUID? = nil
 
     @StateObject private var profileManager = ProfileManager.shared
+    @Environment(\.appTheme) private var theme
 
     private var statusColor: Color {
-        switch status.indicator.color {
-        case .green: return .adaptiveGreen
-        case .yellow: return .yellow
-        case .orange: return .orange
-        case .red: return .red
-        case .gray: return .gray
-        }
+        theme.serviceStatusColor(status.indicator.color)
     }
 
     private var isMultiProfileMode: Bool {
@@ -513,7 +528,12 @@ struct SmartHeader: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                ProfileSwitcherCompact(onManageProfiles: onManageProfiles)
+                HStack(spacing: 3) {
+                    ProfileSwitcherCompact(onManageProfiles: onManageProfiles)
+                    if theme.showsCursor {
+                        BlinkingCursor(color: theme.accent)
+                    }
+                }
 
                 // Status
                 Button(action: {
@@ -522,13 +542,11 @@ struct SmartHeader: View {
                     }
                 }) {
                     HStack(spacing: 4) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 6, height: 6)
+                        ThemedStatusMarker(color: statusColor, isOperational: status.indicator == .none)
 
-                        Text(status.description)
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
+                        Text(theme.label(status.description))
+                            .font(theme.detailFont.font(size: 9, weight: .medium))
+                            .foregroundColor(theme.headerText?.opacity(0.75) ?? theme.textSecondary)
                     }
                 }
                 .buttonStyle(.plain)
@@ -556,6 +574,14 @@ struct SmartHeader: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .background {
+            if let band = theme.headerBand {
+                band
+            } else if theme.perspectiveGrid {
+                PerspectiveGridView(color: theme.accent.opacity(0.4))
+                    .padding(.top, 12)
+            }
+        }
     }
 }
 
@@ -566,7 +592,14 @@ struct HeaderIconButton: View {
     var isRefreshing: Bool = false
     let action: () -> Void
 
+    @Environment(\.appTheme) private var theme
     @State private var isHovered = false
+
+    private var iconColor: Color {
+        if let headerText = theme.headerText { return headerText }
+        if theme.glow { return theme.accent.opacity(isHovered ? 1 : 0.85) }
+        return isHovered ? theme.textPrimary : theme.textSecondary
+    }
 
     var body: some View {
         Button(action: action) {
@@ -581,7 +614,8 @@ struct HeaderIconButton: View {
                         .imageScale(.medium)
                 }
             }
-            .foregroundColor(isHovered ? .primary : .secondary)
+            .foregroundColor(iconColor)
+            .shadow(color: theme.glow ? theme.accent.opacity(0.7) : .clear, radius: 3)
             .frame(width: 24, height: 24, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 5)
@@ -604,6 +638,7 @@ struct SmartUsageDashboard: View {
     let apiUsage: APIUsage?
     var provider: Provider = .anthropic
     @StateObject private var profileManager = ProfileManager.shared
+    @Environment(\.appTheme) private var theme
     private var capabilities: ProviderCapabilities {
         provider.descriptor.capabilities
     }
@@ -761,13 +796,13 @@ struct SmartUsageDashboard: View {
                 // Overage credit grant balance
                 if let balance = usage.overageBalance, let balanceCurrency = usage.overageBalanceCurrency {
                     HStack {
-                        Text("popover.overage_balance".localized)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
+                        Text(theme.label("popover.overage_balance".localized))
+                            .font(theme.bodyFont.font(size: 11, weight: .medium))
+                            .foregroundColor(theme.textSecondary)
                         Spacer()
                         Text(String(format: "%.2f %@", balance / 100.0, balanceCurrency.uppercased()))
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundColor(.adaptiveGreen)
+                            .font(theme.numberFont.font(size: 11, weight: .semibold))
+                            .foregroundColor(theme.statusColor(.safe))
                     }
                 }
             }
@@ -776,24 +811,24 @@ struct SmartUsageDashboard: View {
             if usage.planType != nil || usage.creditsUnlimited == true || usage.creditsBalance != nil {
                 HStack(spacing: 6) {
                     if let plan = usage.planType {
-                        Text(plan.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.accentColor)
+                        Text(theme.label(plan.replacingOccurrences(of: "_", with: " ").capitalized))
+                            .font(theme.bodyFont.font(size: 9, weight: .semibold))
+                            .foregroundColor(theme.accent)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                            .background(Capsule().fill(theme.accent.opacity(0.12)))
                     }
 
                     Spacer()
 
                     if usage.creditsUnlimited == true {
-                        Text("popover.credits_unlimited".localized)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.adaptiveGreen)
+                        Text(theme.label("popover.credits_unlimited".localized))
+                            .font(theme.bodyFont.font(size: 10, weight: .medium))
+                            .foregroundColor(theme.statusColor(.safe))
                     } else if let balance = usage.creditsBalance {
-                        Text("popover.credits_balance".localized(with: String(format: "%.2f", balance)))
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
+                        Text(theme.label("popover.credits_balance".localized(with: String(format: "%.2f", balance))))
+                            .font(theme.bodyFont.font(size: 10, weight: .medium))
+                            .foregroundColor(theme.textSecondary)
                     }
                 }
                 .padding(.top, 2)
@@ -827,6 +862,8 @@ struct UsageRow: View {
     var showPaceMarker: Bool = true
     var usePaceColoring: Bool = true
     var timeDisplay: PopoverTimeDisplay = .resetTime
+
+    @Environment(\.appTheme) private var theme
 
     private var displayPercentage: Double {
         UsageStatusCalculator.getDisplayPercentage(
@@ -869,11 +906,7 @@ struct UsageRow: View {
     }
 
     private var statusColor: Color {
-        switch statusLevel {
-        case .safe: return .adaptiveGreen
-        case .moderate: return .orange
-        case .critical: return .red
-        }
+        theme.statusColor(statusLevel)
     }
 
     var body: some View {
@@ -882,72 +915,49 @@ struct UsageRow: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
-                        Text(title)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.primary)
+                        ThemedRowTitle(text: title)
 
                         if let tag = tag {
-                            Text(tag)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.primary.opacity(0.08))
-                                )
+                            ThemedTag(text: tag)
                         }
                     }
 
                     if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                        Text(theme.label(subtitle))
+                            .font(theme.detailFont.font(size: 10, weight: .regular))
+                            .foregroundColor(theme.textSecondary)
                     }
                 }
+                // Title column sizes before the spacer, so a themed title only shrinks
+                // when the row is actually too narrow.
+                .layoutPriority(1)
 
                 Spacer()
 
-                Text("\(Int(displayPercentage))%")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(statusColor)
+                ThemedPercent(
+                    value: Int(displayPercentage),
+                    color: statusColor,
+                    isCritical: statusLevel == .critical
+                )
             }
 
             // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color.primary.opacity(0.08))
-
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(statusColor)
-                        .frame(width: geometry.size.width * min(displayPercentage / 100.0, 1.0))
-                        .animation(.easeInOut(duration: 0.6), value: displayPercentage)
-                }
-                .overlay(alignment: .leading) {
-                    if let fraction = timeMarkerFraction {
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(timeMarkerColor)
-                            .frame(width: 2.5, height: 8)
-                            .offset(x: round(geometry.size.width * fraction) - 0.75)
-                    }
-                }
-            }
-            .frame(height: 4)
+            ThemedUsageBar(
+                fraction: displayPercentage / 100.0,
+                color: statusColor,
+                markerFraction: timeMarkerFraction,
+                markerColor: timeMarkerColor,
+                isCritical: statusLevel == .critical
+            )
 
             // Reset time
             if let reset = resetTime {
-                Text(resetTimeText(for: reset))
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                Text(theme.label(resetTimeText(for: reset)))
+                    .font(theme.detailFont.font(size: 9, weight: .regular))
+                    .foregroundColor(theme.textSecondary)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
+        .themedRowChrome(accent: statusColor)
     }
 
     private func resetTimeText(for reset: Date) -> String {
@@ -965,6 +975,7 @@ struct UsageRow: View {
 // MARK: - Contextual Insights
 struct ContextualInsights: View {
     let usage: ClaudeUsage
+    @Environment(\.appTheme) private var theme
 
     private var insights: [Insight] {
         var result: [Insight] = []
@@ -972,7 +983,7 @@ struct ContextualInsights: View {
         if usage.effectiveSessionPercentage > 80 {
             result.append(Insight(
                 icon: "exclamationmark.triangle.fill",
-                color: .orange,
+                color: theme.statusColor(.moderate),
                 title: "usage.high_session".localized,
                 description: "usage.high_session.desc".localized
             ))
@@ -981,7 +992,7 @@ struct ContextualInsights: View {
         if usage.weeklyPercentage > 90 {
             result.append(Insight(
                 icon: "clock.fill",
-                color: .red,
+                color: theme.statusColor(.critical),
                 title: "usage.weekly_approaching".localized,
                 description: "usage.weekly_approaching.desc".localized
             ))
@@ -990,7 +1001,7 @@ struct ContextualInsights: View {
         if usage.effectiveSessionPercentage < 20 && usage.weeklyPercentage < 30 {
             result.append(Insight(
                 icon: "checkmark.circle.fill",
-                color: .adaptiveGreen,
+                color: theme.statusColor(.safe),
                 title: "usage.efficient".localized,
                 description: "usage.efficient.desc".localized
             ))
@@ -1009,13 +1020,13 @@ struct ContextualInsights: View {
                         .frame(width: 16)
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(insight.title)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.primary)
+                        Text(theme.label(insight.title))
+                            .font(theme.bodyFont.font(size: 11, weight: .medium))
+                            .foregroundColor(theme.textPrimary)
 
                         Text(insight.description)
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .font(theme.detailFont.font(size: 10, weight: .regular))
+                            .foregroundColor(theme.textSecondary)
                             .lineLimit(2)
                     }
 
@@ -1147,28 +1158,28 @@ struct SmartActionButton: View {
 // MARK: - API Cost Card
 struct APICostCard: View {
     let apiUsage: APIUsage
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             // Header
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("API Cost")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.primary)
+                    ThemedRowTitle(text: "API Cost")
 
-                    Text("This Month")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                    Text(theme.label("This Month"))
+                        .font(theme.detailFont.font(size: 10, weight: .regular))
+                        .foregroundColor(theme.textSecondary)
                 }
+                .layoutPriority(1)
 
                 Spacer()
 
                 // Total cost
                 if let formatted = apiUsage.formattedAPICost {
                     Text(formatted)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .font(theme.numberFont.font(size: 13, weight: .semibold))
+                        .foregroundColor(theme.textPrimary)
                 }
             }
 
@@ -1205,12 +1216,7 @@ struct APICostCard: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
+        .themedRowChrome(accent: theme.accent)
     }
 }
 
@@ -1218,6 +1224,7 @@ struct APICostCard: View {
 struct DailyCostChart: View {
     let dailyCosts: [(date: Date, cents: Double)]
     let currency: String
+    @Environment(\.appTheme) private var theme
 
     private struct DayCost: Identifiable {
         let id: Date
@@ -1249,7 +1256,7 @@ struct DailyCostChart: View {
                     y: .value("Cost", item.dollars),
                     width: .fixed(12)
                 )
-                .foregroundStyle(Color.orange.opacity(0.75))
+                .foregroundStyle(theme.statusColor(.moderate).opacity(0.75))
                 .cornerRadius(2)
             }
             .chartXScale(domain: xDomain)
@@ -1385,12 +1392,10 @@ struct APIUsageCard: View {
         )
     }
 
+    @Environment(\.appTheme) private var theme
+
     private var usageColor: Color {
-        switch statusLevel {
-        case .safe: return .adaptiveGreen
-        case .moderate: return .orange
-        case .critical: return .red
-        }
+        theme.statusColor(statusLevel)
     }
 
     var body: some View {
@@ -1398,62 +1403,51 @@ struct APIUsageCard: View {
             // Header
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("menubar.api_credits".localized)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.primary)
+                    ThemedRowTitle(text: "menubar.api_credits".localized)
 
-                    Text("menubar.anthropic_console".localized)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                    Text(theme.label("menubar.anthropic_console".localized))
+                        .font(theme.detailFont.font(size: 10, weight: .regular))
+                        .foregroundColor(theme.textSecondary)
                 }
+                .layoutPriority(1)
 
                 Spacer()
 
-                Text("\(Int(displayPercentage))%")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(usageColor)
+                ThemedPercent(
+                    value: Int(displayPercentage),
+                    color: usageColor,
+                    isCritical: statusLevel == .critical
+                )
             }
 
             // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color.primary.opacity(0.08))
-
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(usageColor)
-                        .frame(width: geometry.size.width * min(displayPercentage / 100.0, 1.0))
-                        .animation(.easeInOut(duration: 0.6), value: displayPercentage)
-                }
-            }
-            .frame(height: 4)
+            ThemedUsageBar(
+                fraction: displayPercentage / 100.0,
+                color: usageColor,
+                isCritical: statusLevel == .critical
+            )
 
             // Used / Remaining
             HStack {
                 Text(apiUsage.formattedUsed)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(theme.detailFont.font(size: 10, weight: .regular))
+                    .foregroundColor(theme.textSecondary)
 
                 Spacer()
 
                 Text(apiUsage.formattedRemaining)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(theme.detailFont.font(size: 10, weight: .regular))
+                    .foregroundColor(theme.textSecondary)
             }
 
             // Reset Time
             if apiUsage.resetsAt > Date() {
-                Text(resetTimeText(for: apiUsage.resetsAt))
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                Text(theme.label(resetTimeText(for: apiUsage.resetsAt)))
+                    .font(theme.detailFont.font(size: 9, weight: .regular))
+                    .foregroundColor(theme.textSecondary)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
+        .themedRowChrome(accent: usageColor)
     }
 
     private func resetTimeText(for reset: Date) -> String {
@@ -1474,6 +1468,7 @@ struct StatusBannerView: View {
     let message: String
     let color: Color
     var onTap: (() -> Void)? = nil
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         // A Button rather than a tap gesture: the popover belongs to an inactive
@@ -1494,9 +1489,9 @@ struct StatusBannerView: View {
             Image(systemName: icon)
                 .font(.system(size: 11))
                 .foregroundColor(color)
-            Text(message)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.primary)
+            Text(theme.label(message))
+                .font(theme.bodyFont.font(size: 11, weight: .medium))
+                .foregroundColor(theme.textPrimary)
                 .lineLimit(1)
             Spacer()
             if onTap != nil {

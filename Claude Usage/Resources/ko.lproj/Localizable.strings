@@ -1131,3 +1131,18 @@
 "cc_accounts.empty" = "홈 폴더에서 로그인된 Claude Code 설정 폴더를 찾을 수 없습니다. claude(또는 CLAUDE_CONFIG_DIR=~/.claude-name claude)로 로그인한 후 새로 고치세요.";
 "cc_accounts.unknown_pin" = "%@에 연결되어 있지만 홈 폴더에서 찾을 수 없습니다.";
 "cc_accounts.linked_count" = "프로필 %d개를 연결했습니다.";
+
+/* Theme */
+"section.theme_title" = "테마";
+"section.theme_desc" = "메뉴 막대와 팝오버의 모양";
+"theme.title" = "테마";
+"theme.subtitle" = "메뉴 막대 아이콘과 팝오버의 모양을 선택하세요. 모든 프로필에 적용됩니다.";
+"theme.name.system" = "시스템";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "형광체";
+"theme.desc.system" = "시스템 색상을 사용하는 기본 macOS 모양입니다.";
+"theme.desc.grid" = "검은 유리와 청록색 빛의 선. 위험 수준 사용량은 주황색으로 바뀝니다.";
+"theme.desc.night_city" = "네온 노랑, 청록, 빨강에 모서리를 자른 패널과 분할 막대.";
+"theme.desc.phosphor" = "주사선과 블록 막대가 있는 호박색 CRT 터미널.";
+"theme.footnote" = "시스템 설정에서 동작 줄이기가 켜져 있으면 애니메이션이 꺼집니다.";
