@@ -54,6 +54,16 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Show Test Host Crash Reports
+        if: failure()
+        run: |
+          # A crashed test host only shows as "failed (0.000 seconds)" in the test log.
+          for f in ~/Library/Logs/DiagnosticReports/*Claude*; do
+            [ -e "$f" ] || continue
+            echo "===== $f"
+            head -c 20000 "$f"
+          done
+
       - name: Build Release
         run: |
           xcodebuild build \
