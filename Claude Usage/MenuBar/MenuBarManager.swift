@@ -353,6 +353,18 @@ class MenuBarManager: NSObject, ObservableObject {
             .store(in: &cancellables)
 
         LoggingService.shared.log("MenuBarManager: Observing profile changes (initial: \(initialProfileId?.uuidString ?? "nil"))")
+
+        // A theme change while the popover or detached window is open updates their
+        // forced appearance too; the SwiftUI content already follows ThemeManager.
+        ThemeManager.shared.$themeID
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.popover?.appearance = self.themeAppearance
+                self.detachedWindow?.appearance = self.themeAppearance
+            }
+            .store(in: &cancellables)
     }
 
     private func handleProfileSwitch(to profile: Profile) async {
