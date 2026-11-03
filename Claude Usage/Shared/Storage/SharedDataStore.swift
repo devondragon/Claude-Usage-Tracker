@@ -63,12 +63,20 @@ class SharedDataStore {
         static let popoverShowRemainingTime = "popoverShowRemainingTime" // legacy bool key
         static let popoverTimeDisplay = "popoverTimeDisplay"
         static let timeFormatPreference = "timeFormatPreference"
+
+        // Theme
+        static let appTheme = "appTheme"
     }
 
     init() {
         // Use standard UserDefaults (app container)
         self.defaults = UserDefaults.standard
         LoggingService.shared.log("SharedDataStore: Using standard app container storage")
+    }
+
+    /// Uses the given defaults instead of the standard domain. For tests.
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
     }
 
     // MARK: - Language & Localization
@@ -463,6 +471,22 @@ class SharedDataStore {
 
     func loadAutoSwitchProfileEnabled() -> Bool {
         return defaults.bool(forKey: Keys.autoSwitchProfileEnabled)
+    }
+
+    // MARK: - Theme
+
+    func saveAppTheme(_ theme: AppThemeID) {
+        defaults.set(theme.rawValue, forKey: Keys.appTheme)
+    }
+
+    /// The saved theme, or `.system` when none is saved or the saved value is unknown
+    /// (for example a theme removed in a later version).
+    func loadAppTheme() -> AppThemeID {
+        guard let raw = defaults.string(forKey: Keys.appTheme),
+              let theme = AppThemeID(rawValue: raw) else {
+            return .system
+        }
+        return theme
     }
 
     // MARK: - Popover Settings
