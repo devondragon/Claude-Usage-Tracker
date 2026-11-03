@@ -343,7 +343,8 @@ final class StatusBarUIManager {
         defer { newImage.unlockFocus() }
         // Shift content up 2px to create a 1px gap above the underline
         image.draw(at: NSPoint(x: 0, y: 2), from: .zero, operation: .copy, fraction: 1.0)
-        NSColor.systemGreen.setFill()
+        let theme = ThemeManager.shared.current
+        (theme.id == .system ? NSColor.systemGreen : theme.safe).setFill()
         NSBezierPath(rect: NSRect(x: 1, y: 0, width: image.size.width - 2, height: 1)).fill()
         return newImage
     }
@@ -505,7 +506,8 @@ final class StatusBarUIManager {
                 underlinedImage.isTemplate = false
                 finalImage = underlinedImage
             } else {
-                image.isTemplate = useMonochrome && !config.showPaceMarker
+                // A themed monochrome icon keeps the theme color, so it is not a template image.
+                image.isTemplate = useMonochrome && !config.showPaceMarker && ThemeManager.shared.current.allowsTemplateImages
                 finalImage = image
             }
 
@@ -674,7 +676,9 @@ final class StatusBarUIManager {
             )
         }
 
+        // A themed monochrome icon keeps the theme color, so it is not a template image.
         image.isTemplate = config.colorMode == .monochrome && !config.showPaceMarker
+            && ThemeManager.shared.current.allowsTemplateImages
         button.image = image
     }
 

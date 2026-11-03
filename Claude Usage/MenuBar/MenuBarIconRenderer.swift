@@ -10,6 +10,9 @@ import Cocoa
 /// Handles rendering of individual metric icons for the menu bar
 final class MenuBarIconRenderer {
 
+    /// Active theme; read on every render so a theme change shows on the next redraw.
+    private var theme: AppTheme { ThemeManager.shared.current }
+
     // MARK: - Public Methods
 
     /// Creates an image for a specific metric
@@ -421,10 +424,9 @@ final class MenuBarIconRenderer {
         let padding: CGFloat = 2.0
 
         // Outer container
-        let containerPath = NSBezierPath(
-            roundedRect: NSRect(x: xOffset + 1, y: barY, width: barWidth, height: barHeight),
-            xRadius: 2.5,
-            yRadius: 2.5
+        let containerPath = theme.menuBarBarPath(
+            NSRect(x: xOffset + 1, y: barY, width: barWidth, height: barHeight),
+            radius: 2.5
         )
         outlineColor.withAlphaComponent(0.5).setStroke()
         containerPath.lineWidth = 1.2
@@ -433,18 +435,13 @@ final class MenuBarIconRenderer {
         // Fill level
         let fillWidth = (barWidth - padding * 2) * percentage
         if fillWidth > 1 {
-            let fillPath = NSBezierPath(
-                roundedRect: NSRect(
-                    x: xOffset + 1 + padding,
-                    y: barY + padding,
-                    width: fillWidth,
-                    height: barHeight - padding * 2
-                ),
-                xRadius: 1.5,
-                yRadius: 1.5
+            let innerTrack = NSRect(
+                x: xOffset + 1 + padding,
+                y: barY + padding,
+                width: barWidth - padding * 2,
+                height: barHeight - padding * 2
             )
-            fillColor.setFill()
-            fillPath.fill()
+            theme.drawMenuBarFill(track: innerTrack, width: fillWidth, radius: 1.5, color: fillColor, isDarkMode: isDarkMode)
         }
 
         // Time-elapsed tick mark on the battery bar
@@ -458,7 +455,7 @@ final class MenuBarIconRenderer {
 
         // Label BELOW the battery (replaces percentage text)
         let textAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 9, weight: .medium),
+            .font: theme.menuBarFont(size: 9, weight: .medium),
             .foregroundColor: textColor.withAlphaComponent(0.85)
         ]
 
@@ -525,7 +522,7 @@ final class MenuBarIconRenderer {
         // Draw label before bar (just "S" or "W")
         if showIconName {
             let labelAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+                .font: theme.menuBarFont(size: 10, weight: .semibold),
                 .foregroundColor: textColor.withAlphaComponent(0.9)
             ]
             let label = labels.short as NSString
@@ -542,24 +539,13 @@ final class MenuBarIconRenderer {
         let barY = (height - barHeight) / 2
 
         // Background
-        let bgPath = NSBezierPath(
-            roundedRect: NSRect(x: xOffset, y: barY, width: barWidth, height: barHeight),
-            xRadius: 4,
-            yRadius: 4
-        )
-        backgroundColor.setFill()
-        bgPath.fill()
+        let trackRect = NSRect(x: xOffset, y: barY, width: barWidth, height: barHeight)
+        theme.drawMenuBarTrack(trackRect, radius: 4, color: backgroundColor)
 
         // Fill
         let fillWidth = barWidth * CGFloat(metricData.percentage / 100.0)
         if fillWidth > 1 {
-            let fillPath = NSBezierPath(
-                roundedRect: NSRect(x: xOffset, y: barY, width: fillWidth, height: barHeight),
-                xRadius: 4,
-                yRadius: 4
-            )
-            fillColor.setFill()
-            fillPath.fill()
+            theme.drawMenuBarFill(track: trackRect, width: fillWidth, radius: 4, color: fillColor, isDarkMode: isDarkMode)
 
             // Time-elapsed tick mark on the progress bar
             if let fraction = timeMarkerFraction {
@@ -573,7 +559,7 @@ final class MenuBarIconRenderer {
             // Draw session reset time inside the fill area if enabled and this is a session metric
             if showNextSessionTime && metricType == .session, let resetTime = metricData.sessionResetTime {
                 let timeString = resetTime.timeRemainingHoursString() as NSString
-                let timeFont = NSFont.systemFont(ofSize: 5.5, weight: .medium)
+                let timeFont = theme.menuBarFont(size: 5.5, weight: .medium)
                 let timeAttributes: [NSAttributedString.Key: Any] = [
                     .font: timeFont,
                     .foregroundColor: NSColor.white
@@ -604,7 +590,7 @@ final class MenuBarIconRenderer {
         paceStatus: PaceStatus? = nil,
         showPaceMarker: Bool = false
     ) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)  // Larger font
+        let font = theme.menuBarDigitFont(size: 12, weight: .semibold)  // Larger font
         let fillColor: NSColor = getColorForMode(colorMode, statusLevel: metricData.statusLevel, singleColorHex: singleColorHex, isDarkMode: isDarkMode)
 
         var fullText = ""
@@ -629,7 +615,9 @@ final class MenuBarIconRenderer {
         defer { image.unlockFocus() }
 
         let textY = (18 - textSize.height) / 2
-        fullText.draw(at: NSPoint(x: 2, y: textY), withAttributes: attributes)
+        theme.withMenuBarGlow(fillColor, isDarkMode: isDarkMode, radius: 2) {
+            fullText.draw(at: NSPoint(x: 2, y: textY), withAttributes: attributes)
+        }
 
         // Pace dot after text
         if showPaceMarker, let pace = paceStatus {
@@ -707,8 +695,8 @@ final class MenuBarIconRenderer {
             )
             fillColor.setStroke()
             arcPath.lineWidth = 3.0
-            arcPath.lineCapStyle = .round
-            arcPath.stroke()
+            theme.styleMenuBarRing(arcPath)
+            theme.withMenuBarGlow(fillColor, isDarkMode: isDarkMode) { arcPath.stroke() }
         }
 
         // Time-elapsed tick mark on the ring (clockwise from 12 o'clock)
@@ -731,7 +719,7 @@ final class MenuBarIconRenderer {
         // Draw S/W in the CENTER of the circle
         if showIconName {
             let labelAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 9, weight: .bold),
+                .font: theme.menuBarFont(size: 9, weight: .bold),
                 .foregroundColor: textColor
             ]
             let label = labels.short as NSString
@@ -778,7 +766,7 @@ final class MenuBarIconRenderer {
         // Draw prefix if enabled
         if showIconName {
             let prefixAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 9, weight: .medium),
+                .font: theme.menuBarFont(size: 9, weight: .medium),
                 .foregroundColor: textColor.withAlphaComponent(0.85)
             ]
             let prefixText = labels.prefix as NSString
@@ -793,9 +781,9 @@ final class MenuBarIconRenderer {
         // Draw dot
         let dotY = (height - dotSize) / 2
         let dotRect = NSRect(x: xOffset, y: dotY, width: dotSize, height: dotSize)
-        let dotPath = NSBezierPath(ovalIn: dotRect)
+        let dotPath = theme.menuBarDotPath(dotRect)
         fillColor.setFill()
-        dotPath.fill()
+        theme.withMenuBarGlow(fillColor, isDarkMode: isDarkMode) { dotPath.fill() }
 
         // Pace dot next to main dot
         if showPaceMarker, let pace = paceStatus {
@@ -819,7 +807,7 @@ final class MenuBarIconRenderer {
         singleColorHex: String,
         showIconName: Bool
     ) -> NSImage {
-        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let font = theme.menuBarFont(size: 11, weight: .medium)
 
         // Use isDarkMode to determine correct foreground color for menu bar
         let textColor: NSColor = menuBarForegroundColor(isDarkMode: isDarkMode)
@@ -922,8 +910,8 @@ final class MenuBarIconRenderer {
             )
             sessionColor.setStroke()
             outerProgressPath.lineWidth = outerStrokeWidth
-            outerProgressPath.lineCapStyle = .round
-            outerProgressPath.stroke()
+            theme.styleMenuBarRing(outerProgressPath)
+            theme.withMenuBarGlow(sessionColor, isDarkMode: isDarkMode) { outerProgressPath.stroke() }
         }
 
         // Session time marker on outer ring
@@ -967,8 +955,8 @@ final class MenuBarIconRenderer {
             )
             weekColor.setStroke()
             innerProgressPath.lineWidth = innerStrokeWidth
-            innerProgressPath.lineCapStyle = .round
-            innerProgressPath.stroke()
+            theme.styleMenuBarRing(innerProgressPath)
+            theme.withMenuBarGlow(weekColor, isDarkMode: isDarkMode) { innerProgressPath.stroke() }
         }
 
         // Week time marker on inner ring
@@ -985,7 +973,7 @@ final class MenuBarIconRenderer {
         // Profile initial in center
         let initial = String(profileInitial.prefix(1)).uppercased()
         let labelAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 8, weight: .bold),
+            .font: theme.menuBarFont(size: 8, weight: .bold),
             .foregroundColor: textColor
         ]
         let labelString = initial as NSString
@@ -1065,8 +1053,8 @@ final class MenuBarIconRenderer {
             )
             sessionColor.setStroke()
             outerProgressPath.lineWidth = outerStrokeWidth
-            outerProgressPath.lineCapStyle = .round
-            outerProgressPath.stroke()
+            theme.styleMenuBarRing(outerProgressPath)
+            theme.withMenuBarGlow(sessionColor, isDarkMode: isDarkMode) { outerProgressPath.stroke() }
         }
 
         // Session time marker on outer ring
@@ -1110,8 +1098,8 @@ final class MenuBarIconRenderer {
             )
             weekColor.setStroke()
             innerProgressPath.lineWidth = innerStrokeWidth
-            innerProgressPath.lineCapStyle = .round
-            innerProgressPath.stroke()
+            theme.styleMenuBarRing(innerProgressPath)
+            theme.withMenuBarGlow(weekColor, isDarkMode: isDarkMode) { innerProgressPath.stroke() }
         }
 
         // Week time marker on inner ring
@@ -1128,7 +1116,7 @@ final class MenuBarIconRenderer {
         // Profile label below the circle (first 3 characters)
         let label = String(profileName.prefix(3))
         let labelAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+            .font: theme.menuBarFont(size: 8, weight: .medium),
             .foregroundColor: textColor.withAlphaComponent(0.85)
         ]
         let labelString = label as NSString
@@ -1183,13 +1171,10 @@ final class MenuBarIconRenderer {
         // Session bar (top)
         currentY -= barHeight
         let sessionBgRect = NSRect(x: 0, y: currentY, width: barWidth, height: barHeight)
-        backgroundColor.setFill()
-        NSBezierPath(roundedRect: sessionBgRect, xRadius: 2, yRadius: 2).fill()
+        theme.drawMenuBarTrack(sessionBgRect, radius: 2, color: backgroundColor)
 
         let sessionFillWidth = barWidth * CGFloat(sessionPercentage / 100.0)
-        let sessionFillRect = NSRect(x: 0, y: currentY, width: sessionFillWidth, height: barHeight)
-        sessionColor.setFill()
-        NSBezierPath(roundedRect: sessionFillRect, xRadius: 2, yRadius: 2).fill()
+        theme.drawMenuBarFill(track: sessionBgRect, width: sessionFillWidth, radius: 2, color: sessionColor, isDarkMode: isDarkMode)
 
         // Session time marker tick
         if let fraction = sessionTimeMarker {
@@ -1204,13 +1189,10 @@ final class MenuBarIconRenderer {
         if let weekPct = weekPercentage {
             currentY -= (spacing + barHeight)
             let weekBgRect = NSRect(x: 0, y: currentY, width: barWidth, height: barHeight)
-            backgroundColor.setFill()
-            NSBezierPath(roundedRect: weekBgRect, xRadius: 2, yRadius: 2).fill()
+            theme.drawMenuBarTrack(weekBgRect, radius: 2, color: backgroundColor)
 
             let weekFillWidth = barWidth * CGFloat(weekPct / 100.0)
-            let weekFillRect = NSRect(x: 0, y: currentY, width: weekFillWidth, height: barHeight)
-            weekColor.setFill()
-            NSBezierPath(roundedRect: weekFillRect, xRadius: 2, yRadius: 2).fill()
+            theme.drawMenuBarFill(track: weekBgRect, width: weekFillWidth, radius: 2, color: weekColor, isDarkMode: isDarkMode)
 
             // Week time marker tick
             if let fraction = weekTimeMarker {
@@ -1226,7 +1208,7 @@ final class MenuBarIconRenderer {
         if let name = profileName {
             let label = String(name.prefix(3))
             let labelAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+                .font: theme.menuBarFont(size: 8, weight: .medium),
                 .foregroundColor: foregroundColor.withAlphaComponent(0.85)
             ]
             let labelString = label as NSString
@@ -1278,7 +1260,7 @@ final class MenuBarIconRenderer {
             height: dotSize
         )
         dotColor.setFill()
-        NSBezierPath(ovalIn: dotRect).fill()
+        theme.withMenuBarGlow(dotColor, isDarkMode: isDarkMode) { theme.menuBarDotPath(dotRect).fill() }
 
         // Pace dot next to main dot
         if showPaceMarker, let pace = paceStatus {
@@ -1293,7 +1275,7 @@ final class MenuBarIconRenderer {
         // Profile initial (if shown)
         if let initial = profileInitial {
             let labelAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 8, weight: .bold),
+                .font: theme.menuBarFont(size: 8, weight: .bold),
                 .foregroundColor: foregroundColor.withAlphaComponent(0.85)
             ]
             let labelString = initial.uppercased() as NSString
@@ -1366,7 +1348,7 @@ final class MenuBarIconRenderer {
         weekPaceStatus: PaceStatus? = nil,
         showPaceMarker: Bool = false
     ) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+        let font = theme.menuBarDigitFont(size: 9, weight: .semibold)
         let foregroundColor = menuBarForegroundColor(isDarkMode: isDarkMode)
         let separatorColor = foregroundColor.withAlphaComponent(0.4)
 
@@ -1428,7 +1410,7 @@ final class MenuBarIconRenderer {
         if let name = profileName {
             let label = String(name.prefix(3))
             let labelAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+                .font: theme.menuBarFont(size: 8, weight: .medium),
                 .foregroundColor: foregroundColor.withAlphaComponent(0.85)
             ]
             let labelString = label as NSString
@@ -1445,18 +1427,11 @@ final class MenuBarIconRenderer {
     /// Returns the appropriate foreground color for menu bar icons based on appearance
     /// This is needed because NSColor.labelColor doesn't resolve correctly in image drawing contexts
     private func menuBarForegroundColor(isDarkMode: Bool) -> NSColor {
-        return isDarkMode ? .white : .black
+        theme.menuBarForeground(isDarkMode: isDarkMode)
     }
 
-    private func getColorForStatusLevel(_ level: UsageStatusLevel) -> NSColor {
-        switch level {
-        case .safe:
-            return NSColor.systemGreen
-        case .moderate:
-            return NSColor.systemOrange
-        case .critical:
-            return NSColor.systemRed
-        }
+    private func getColorForStatusLevel(_ level: UsageStatusLevel, isDarkMode: Bool) -> NSColor {
+        theme.menuBarStatusColor(level, isDarkMode: isDarkMode)
     }
 
     /// Returns the appropriate color based on the color mode setting
@@ -1469,7 +1444,7 @@ final class MenuBarIconRenderer {
     private func getColorForMode(_ colorMode: MenuBarColorMode, statusLevel: UsageStatusLevel, singleColorHex: String, isDarkMode: Bool) -> NSColor {
         switch colorMode {
         case .multiColor:
-            return getColorForStatusLevel(statusLevel)
+            return getColorForStatusLevel(statusLevel, isDarkMode: isDarkMode)
         case .monochrome:
             return menuBarForegroundColor(isDarkMode: isDarkMode)
         case .singleColor:
@@ -1488,7 +1463,7 @@ final class MenuBarIconRenderer {
         if monochromeMode || useSystemColor {
             return menuBarForegroundColor(isDarkMode: isDarkMode)
         } else {
-            return getColorForStatusLevel(status)
+            return getColorForStatusLevel(status, isDarkMode: isDarkMode)
         }
     }
 
