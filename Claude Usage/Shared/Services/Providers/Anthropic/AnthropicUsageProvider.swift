@@ -133,8 +133,25 @@ final class AnthropicUsageProvider: UsageProviderService {
         let tier = (oauth["rateLimitTier"] as? String)?.lowercased()
         let subscription = (oauth["subscriptionType"] as? String)?.lowercased()
         guard tier != nil || subscription != nil else { return nil }
-        let markers = ["max_20x", "ultra"]
-        return markers.contains { tier?.contains($0) == true || subscription?.contains($0) == true }
+        return [tier, subscription].contains { isNoSessionLimitPlan($0) }
+    }
+
+    /// The same answer from a stored `oauthAccount` (`~/.claude.json`), which
+    /// carries the tier without any token. Nil when it names no tier.
+    static func planHasNoSessionLimit(oauthAccountJSON: String) -> Bool? {
+        guard let data = oauthAccountJSON.data(using: .utf8),
+              let account = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let tiers = ["organizationRateLimitTier", "userRateLimitTier"]
+            .compactMap { (account[$0] as? String)?.lowercased() }
+        guard !tiers.isEmpty else { return nil }
+        return tiers.contains { isNoSessionLimitPlan($0) }
+    }
+
+    private static func isNoSessionLimitPlan(_ name: String?) -> Bool {
+        guard let name else { return false }
+        return ["max_20x", "ultra"].contains { name.contains($0) }
     }
 
     /// How long a plan lookup is reused. Plans change rarely, and the lookup
@@ -144,13 +161,23 @@ final class AnthropicUsageProvider: UsageProviderService {
     private var planLookups: [UUID: (value: Bool?, checkedAt: Date)] = [:]
 
     /// The plan answer for `profile`, from its cached Claude Code login, its
-    /// pinned keychain entry, or (active, unpinned profiles only) the system
-    /// login. Read-only: tokens are never refreshed here.
+    /// pinned keychain entry, (active, unpinned profiles only) the system
+    /// login, or last its stored `oauthAccount`. The last covers a non-active
+    /// profile with only a claude.ai session key, such as one imported from
+    /// upstream without its CLI credentials. Read-only: tokens are never
+    /// refreshed here.
     private func planHasNoSessionLimit(for profile: Profile) -> Bool? {
         if let json = profile.cliCredentialsJSON,
            let value = Self.planHasNoSessionLimit(credentialsJSON: json) {
             return value
         }
+        return keychainPlanLookup(for: profile)
+            ?? profile.oauthAccountJSON.flatMap(Self.planHasNoSessionLimit(oauthAccountJSON:))
+    }
+
+    /// The plan from the profile's pinned keychain entry or, for the active
+    /// unpinned profile, the system login. Cached for `planLookupInterval`.
+    private func keychainPlanLookup(for profile: Profile) -> Bool? {
         let now = Date()
         if let cached = planLookups[profile.id],
            now.timeIntervalSince(cached.checkedAt) < Self.planLookupInterval {

@@ -32,6 +32,30 @@ final class PlanTierTests: XCTestCase {
         XCTAssertNil(AnthropicUsageProvider.planHasNoSessionLimit(credentialsJSON: "not json"))
     }
 
+    // MARK: - oauthAccount (from ~/.claude.json, stored on the profile)
+
+    private func oauthAccount(org: String?, user: String?) -> String {
+        var account: [String: Any] = ["emailAddress": "a@example.com"]
+        if let org { account["organizationRateLimitTier"] = org }
+        if let user { account["userRateLimitTier"] = user }
+        let data = try! JSONSerialization.data(withJSONObject: account)
+        return String(data: data, encoding: .utf8)!
+    }
+
+    func testOAuthAccountMax20xHasNoSessionLimit() {
+        XCTAssertEqual(AnthropicUsageProvider.planHasNoSessionLimit(oauthAccountJSON: oauthAccount(org: "default_claude_max_20x", user: nil)), true)
+        XCTAssertEqual(AnthropicUsageProvider.planHasNoSessionLimit(oauthAccountJSON: oauthAccount(org: nil, user: "default_claude_ultra")), true)
+    }
+
+    func testOAuthAccountOtherTiersKeepSessionLimit() {
+        XCTAssertEqual(AnthropicUsageProvider.planHasNoSessionLimit(oauthAccountJSON: oauthAccount(org: "default_claude_max_5x", user: nil)), false)
+    }
+
+    func testOAuthAccountWithoutTierIsNil() {
+        XCTAssertNil(AnthropicUsageProvider.planHasNoSessionLimit(oauthAccountJSON: oauthAccount(org: nil, user: nil)))
+        XCTAssertNil(AnthropicUsageProvider.planHasNoSessionLimit(oauthAccountJSON: "not json"))
+    }
+
     func testStampingNilLeavesUsageUnchanged() {
         var usage = ClaudeUsage.empty
         usage.planHasNoSessionLimit = true
