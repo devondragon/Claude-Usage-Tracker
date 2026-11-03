@@ -41,6 +41,7 @@ final class AnthropicUsageProvider: UsageProviderService {
             let usage = try await apiService.fetchUsageData(sessionKey: sessionKey, organizationId: orgId)
             return await addingSpendFromClaudeCode(to: usage, for: profile)
                 .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
+                .stampingPlan(noSessionLimit: planHasNoSessionLimit(for: profile))
         }
 
         // Priority 2: CLI OAuth credentials.
@@ -60,6 +61,7 @@ final class AnthropicUsageProvider: UsageProviderService {
                let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: usableJSON) {
                 return try await apiService.fetchUsageData(oauthAccessToken: accessToken)
                     .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
+                    .stampingPlan(noSessionLimit: Self.planHasNoSessionLimit(credentialsJSON: usableJSON))
             }
         }
 
@@ -76,6 +78,7 @@ final class AnthropicUsageProvider: UsageProviderService {
            let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: systemCredentials) {
             return try await apiService.fetchUsageData(oauthAccessToken: accessToken)
                 .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
+                .stampingPlan(noSessionLimit: Self.planHasNoSessionLimit(credentialsJSON: systemCredentials))
         }
 
         // No usable live credential (e.g. a non-active profile whose CLI token expired and
@@ -110,6 +113,60 @@ final class AnthropicUsageProvider: UsageProviderService {
         let usage = try await apiService.fetchUsageData()
         return await addingSpendFromClaudeCode(to: usage, for: profile)
             .respectingOverageOptOut(enabled: profile.checkOverageLimitEnabled)
+            .stampingPlan(noSessionLimit: planHasNoSessionLimit(for: profile))
+    }
+
+    // MARK: - Plan tier
+
+    // The usage response has `five_hour: null` both for an idle Pro/Max 5x
+    // session and for plans with no 5-hour limit (Max 20x / Ultra), so the
+    // plan comes from the Claude Code login's `rateLimitTier` instead.
+
+    /// Whether the plan in a Claude Code credentials JSON has no 5-hour
+    /// session limit. Nil when the JSON carries no tier or subscription type.
+    static func planHasNoSessionLimit(credentialsJSON: String) -> Bool? {
+        guard let data = credentialsJSON.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let oauth = json["claudeAiOauth"] as? [String: Any] else {
+            return nil
+        }
+        let tier = (oauth["rateLimitTier"] as? String)?.lowercased()
+        let subscription = (oauth["subscriptionType"] as? String)?.lowercased()
+        guard tier != nil || subscription != nil else { return nil }
+        let markers = ["max_20x", "ultra"]
+        return markers.contains { tier?.contains($0) == true || subscription?.contains($0) == true }
+    }
+
+    /// How long a plan lookup is reused. Plans change rarely, and the lookup
+    /// can spawn a `security` subprocess.
+    static let planLookupInterval: TimeInterval = 600
+
+    private var planLookups: [UUID: (value: Bool?, checkedAt: Date)] = [:]
+
+    /// The plan answer for `profile`, from its cached Claude Code login, its
+    /// pinned keychain entry, or (active, unpinned profiles only) the system
+    /// login. Read-only: tokens are never refreshed here.
+    private func planHasNoSessionLimit(for profile: Profile) -> Bool? {
+        if let json = profile.cliCredentialsJSON,
+           let value = Self.planHasNoSessionLimit(credentialsJSON: json) {
+            return value
+        }
+        let now = Date()
+        if let cached = planLookups[profile.id],
+           now.timeIntervalSince(cached.checkedAt) < Self.planLookupInterval {
+            return cached.value
+        }
+
+        let sync = ClaudeCodeSyncService.shared
+        var json: String?
+        if let service = profile.customKeychainServiceName {
+            json = sync.readKeychainCredentials(serviceName: service)
+        } else if profile.id == ProfileManager.shared.activeProfile?.id {
+            json = try? sync.readSystemCredentials()
+        }
+        let value = json.flatMap(Self.planHasNoSessionLimit(credentialsJSON:))
+        planLookups[profile.id] = (value, now)
+        return value
     }
 
     // MARK: - Spend from the Claude Code login

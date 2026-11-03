@@ -68,6 +68,11 @@ struct ClaudeUsage: Codable, Equatable {
     /// When the spend fields were last read from an API response. A cached
     /// spend from an earlier month must not be reused.
     var spendUpdatedAt: Date? = nil
+    /// The account's plan has no 5-hour session limit at all (Max 20x /
+    /// Ultra), as opposed to an idle session. Read from the Claude Code
+    /// login's rate-limit tier, since the usage response looks the same for
+    /// both. False when the tier is unknown.
+    var planHasNoSessionLimit: Bool = false
 
     /// The response had no 5-hour block and no weekly limit at all. True for
     /// Enterprise seats even before their spend is loaded; false for idle Max
@@ -90,6 +95,15 @@ struct ClaudeUsage: Codable, Equatable {
         usage.overageBalanceCurrency = nil
         usage.spendLimitReached = false
         usage.spendUpdatedAt = nil
+        return usage
+    }
+
+    /// `self` with `planHasNoSessionLimit` set. An unknown plan (nil) leaves
+    /// the field as it was, so the session bar keeps its usual behavior.
+    func stampingPlan(noSessionLimit: Bool?) -> ClaudeUsage {
+        guard let noSessionLimit else { return self }
+        var usage = self
+        usage.planHasNoSessionLimit = noSessionLimit
         return usage
     }
 
@@ -192,6 +206,7 @@ extension ClaudeUsage {
         case planType, creditsBalance, creditsUnlimited
         case lastUpdated, userTimezone
         case hasSessionWindow, hasWeeklyWindow, spendLimitReached, spendUpdatedAt
+        case planHasNoSessionLimit
     }
 
     init(from decoder: Decoder) throws {
@@ -229,7 +244,8 @@ extension ClaudeUsage {
             hasSessionWindow: try c.decodeIfPresent(Bool.self, forKey: .hasSessionWindow) ?? true,
             hasWeeklyWindow: try c.decodeIfPresent(Bool.self, forKey: .hasWeeklyWindow) ?? true,
             spendLimitReached: try c.decodeIfPresent(Bool.self, forKey: .spendLimitReached) ?? false,
-            spendUpdatedAt: try c.decodeIfPresent(Date.self, forKey: .spendUpdatedAt)
+            spendUpdatedAt: try c.decodeIfPresent(Date.self, forKey: .spendUpdatedAt),
+            planHasNoSessionLimit: try c.decodeIfPresent(Bool.self, forKey: .planHasNoSessionLimit) ?? false
         )
     }
 }

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Auto-start runs on a schedule through the Claude Code CLI**: each profile with auto-start on gets weekday and weekend start and stop times (defaults 07:00 to 20:00 on weekdays and 09:00 to 22:00 on weekends). Inside those hours, when no 5-hour window is open, the app runs `claude -p` with a one-word prompt on Haiku under the profile's own Claude Code login (`CLAUDE_CONFIG_DIR` for a linked config dir, the default `~/.claude` login otherwise, only when it is the same account). A timer fires at each schedule start and window reset, so starts land on time. Failed attempts back off and pause for 5 hours after three tries, and the profile's General settings show the last attempt's result.
+- **Max 20x and Ultra show the weekly bar in single-profile mode**: these plans have no 5-hour session limit, so the session menu bar item draws the weekly bar instead, or hides when the weekly item is also enabled. The plan comes from the Claude Code login's rate-limit tier, because the usage response looks the same as an idle Pro or Max 5x session. Profiles without a Claude Code login keep the session bar. Multi-profile mode is unchanged.
 
 ### Removed
 

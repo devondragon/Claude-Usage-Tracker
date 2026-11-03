@@ -641,6 +641,23 @@ final class StatusBarUIManager {
                 singleColorHex: config.singleColorHex,
                 showIconName: config.showIconNames
             )
+        case .weekly:
+            // Prefer the week item's own settings (e.g. token display mode)
+            // even though it is disabled; fall back to the session item's.
+            var weekConfig = config.config(for: .week) ?? metricConfig
+            weekConfig.metricType = .week
+            image = renderer.createImage(
+                for: .week,
+                config: weekConfig,
+                globalConfig: config,
+                usage: usage,
+                apiUsage: apiUsage,
+                isDarkMode: menuBarIsDark,
+                colorMode: config.colorMode,
+                singleColorHex: config.singleColorHex,
+                showIconName: config.showIconNames,
+                showNextSessionTime: false
+            )
         case .metric, .hidden:
             image = renderer.createImage(
                 for: metricConfig.metricType,
@@ -710,10 +727,10 @@ final class StatusBarUIManager {
     /// Get the first enabled metric's button (for backwards compatibility)
     var primaryButton: NSStatusBarButton? {
         let config = DataStore.shared.loadMenuBarIconConfiguration()
-        guard let firstMetric = config.enabledMetrics.first else {
-            return nil
-        }
-        return statusItems[firstMetric.metricType]?.button
+        // Skip items the slot layout hid (e.g. the session item on a plan with
+        // no session limit); a hidden button has no window to anchor to.
+        let items = config.enabledMetrics.compactMap { statusItems[$0.metricType] }
+        return (items.first { $0.isVisible } ?? items.first)?.button
     }
 
     /// Find which metric type owns the given button (sender)
