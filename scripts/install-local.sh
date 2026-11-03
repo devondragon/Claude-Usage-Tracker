@@ -4,10 +4,14 @@
 #
 #   scripts/install-local.sh            # build, install, relaunch
 #   scripts/install-local.sh --no-build # reinstall the last build
+#   scripts/install-local.sh --ad-hoc   # build with ad-hoc signing
 #
 # Signing uses the project's Release settings (Developer ID team NLLX25D2J2),
-# so profile secrets stay in the login keychain across reinstalls. An
-# unsigned or ad-hoc build would fall back to the plaintext plist.
+# so profile secrets stay in the login keychain across reinstalls. Use
+# --ad-hoc on a machine without that certificate: the app then keeps profile
+# secrets in the plaintext profiles_v3 plist (it only uses the login keychain
+# when the signature has a team ID, so a self-signed certificate behaves the
+# same way).
 
 set -euo pipefail
 
@@ -19,10 +23,20 @@ BUILT="$REPO_ROOT/build/Build/Products/Release/$APP_NAME"
 
 cd "$REPO_ROOT"
 
-if [[ "${1:-}" != "--no-build" ]]; then
-    echo "==> Building Release ($(git rev-parse --short HEAD) on $(git branch --show-current))"
+do_build=1
+signing=()
+for arg in "$@"; do
+    case "$arg" in
+        --no-build) do_build=0 ;;
+        --ad-hoc) signing=(CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="") ;;
+        *) echo "Unknown option: $arg" >&2; exit 2 ;;
+    esac
+done
+
+if [[ $do_build == 1 ]]; then
+    echo "==> Building Release ($(git rev-parse --short HEAD) on $(git branch --show-current))${signing:+, ad-hoc signed}"
     xcodebuild build -project "Claude Usage.xcodeproj" -scheme "Claude Usage" \
-        -configuration Release -derivedDataPath build -quiet
+        -configuration Release -derivedDataPath build -quiet ${signing[@]+"${signing[@]}"}
 fi
 
 [[ -d "$BUILT" ]] || { echo "No build at $BUILT" >&2; exit 1; }
