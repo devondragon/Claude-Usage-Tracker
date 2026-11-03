@@ -73,4 +73,32 @@ final class MultiProfileBarValuesTests: XCTestCase {
 
         XCTAssertEqual(MultiProfileBarValues.make(for: usage, showWeek: true, now: now).primaryUsed, 100)
     }
+
+    func testNoSessionPlanDrawsOnlyWeeklyBar() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.planHasNoSessionLimit = true
+        usage.weeklyPercentage = 18
+        usage.weeklyResetTime = now.addingTimeInterval(2 * 86_400)
+
+        for showWeek in [true, false] {
+            let values = MultiProfileBarValues.make(for: usage, showWeek: showWeek, now: now)
+            XCTAssertEqual(values.primaryUsed, 18)
+            XCTAssertNotNil(values.primaryElapsed)
+            XCTAssertNil(values.secondaryUsed)
+            XCTAssertNil(values.secondaryElapsed)
+            XCTAssertFalse(values.isSpend)
+        }
+    }
+
+    func testSpendLimitWinsOverNoSessionPlan() {
+        var usage = ClaudeUsage.empty
+        usage.hasSessionWindow = false
+        usage.hasWeeklyWindow = false
+        usage.planHasNoSessionLimit = true
+        usage.costUsed = 2985
+        usage.costLimit = 150000
+
+        XCTAssertTrue(MultiProfileBarValues.make(for: usage, showWeek: true, now: now).isSpend)
+    }
 }

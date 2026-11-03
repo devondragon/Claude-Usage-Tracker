@@ -366,7 +366,8 @@ final class StatusBarUIManager {
             let showRemaining = config.showRemainingPercentage
 
             // Bar values: session + week normally, one spend bar for a
-            // spend-limited profile.
+            // spend-limited profile, one weekly bar for a plan with no
+            // session limit.
             let values = MultiProfileBarValues.make(for: usage, showWeek: config.showWeek, now: Date())
             let hasSecond = values.secondaryUsed != nil
             let sessionUsed = values.primaryUsed
