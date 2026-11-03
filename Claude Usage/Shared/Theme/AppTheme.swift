@@ -157,6 +157,8 @@ struct AppTheme: Equatable {
     let bodyFont: ThemeFontFamily
     let numberFont: ThemeFontFamily
     let detailFont: ThemeFontFamily
+    /// Point size for usage percentages, before the font family's size scale.
+    let percentSize: CGFloat
     let uppercaseLabels: Bool
     let titleTracking: CGFloat
     /// Decorative prefix before usage row titles, such as "SYS//".
@@ -173,7 +175,10 @@ struct AppTheme: Equatable {
     let statusMarker: StatusMarker
     let dividerStyle: DividerStyle
     let glow: Bool
-    let scanlines: Bool
+    /// Color of the horizontal scanline overlay. Nil draws none.
+    let scanlineColor: Color?
+    /// Darkens the panel edges like the curve of a CRT tube.
+    let vignette: Bool
     let perspectiveGrid: Bool
     /// Shows a one-line status readout under the header.
     let showsReadout: Bool
@@ -288,6 +293,7 @@ extension AppTheme {
         bodyFont: .system,
         numberFont: .systemRounded,
         detailFont: .system,
+        percentSize: 13,
         uppercaseLabels: false,
         titleTracking: 0,
         titlePrefix: nil,
@@ -300,7 +306,8 @@ extension AppTheme {
         statusMarker: .circle,
         dividerStyle: .system,
         glow: false,
-        scanlines: false,
+        scanlineColor: nil,
+        vignette: false,
         perspectiveGrid: false,
         showsReadout: false,
         showsCursor: false,
@@ -336,6 +343,7 @@ extension AppTheme {
         bodyFont: .exo2,
         numberFont: .orbitron,
         detailFont: .exo2,
+        percentSize: 17,
         uppercaseLabels: true,
         titleTracking: 1.8,
         titlePrefix: nil,
@@ -348,7 +356,8 @@ extension AppTheme {
         statusMarker: .diamond,
         dividerStyle: .glowLine,
         glow: true,
-        scanlines: false,
+        scanlineColor: nil,
+        vignette: false,
         perspectiveGrid: true,
         showsReadout: false,
         showsCursor: false,
@@ -384,6 +393,7 @@ extension AppTheme {
         bodyFont: .rajdhani,
         numberFont: .rajdhani,
         detailFont: .shareTechMono,
+        percentSize: 18,
         uppercaseLabels: true,
         titleTracking: 1,
         titlePrefix: "SYS//",
@@ -396,7 +406,8 @@ extension AppTheme {
         statusMarker: .square,
         dividerStyle: .hidden,
         glow: false,
-        scanlines: true,
+        scanlineColor: Color.white.opacity(0.025),
+        vignette: false,
         perspectiveGrid: false,
         showsReadout: true,
         showsCursor: false,
@@ -432,6 +443,7 @@ extension AppTheme {
         bodyFont: .vt323,
         numberFont: .vt323,
         detailFont: .vt323,
+        percentSize: 15,
         uppercaseLabels: true,
         titleTracking: 0.4,
         titlePrefix: nil,
@@ -444,7 +456,8 @@ extension AppTheme {
         statusMarker: .bracketText,
         dividerStyle: .dashed,
         glow: true,
-        scanlines: true,
+        scanlineColor: Color.black.opacity(0.3),
+        vignette: true,
         perspectiveGrid: false,
         showsReadout: false,
         showsCursor: true,

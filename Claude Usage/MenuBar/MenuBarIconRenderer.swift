@@ -10,8 +10,16 @@ import Cocoa
 /// Handles rendering of individual metric icons for the menu bar
 final class MenuBarIconRenderer {
 
-    /// Active theme; read on every render so a theme change shows on the next redraw.
-    private var theme: AppTheme { ThemeManager.shared.current }
+    private let fixedTheme: AppTheme?
+
+    /// - Parameter theme: Draw with this theme instead of the active one (previews, tests).
+    init(theme: AppTheme? = nil) {
+        self.fixedTheme = theme
+    }
+
+    /// Theme to draw with; the active theme is read on every render so a theme change
+    /// shows on the next redraw.
+    private var theme: AppTheme { fixedTheme ?? ThemeManager.shared.current }
 
     // MARK: - Public Methods
 
