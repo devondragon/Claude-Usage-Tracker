@@ -51,4 +51,42 @@ final class MenuBarSlotLayoutTests: XCTestCase {
             [.session: .metric]
         )
     }
+
+    // MARK: - Plans without a session limit (Max 20x / Ultra)
+
+    private func noSessionPlan() -> ClaudeUsage {
+        var usage = usage(session: false)
+        usage.planHasNoSessionLimit = true
+        return usage
+    }
+
+    func testNoSessionPlanShowsWeeklyInSessionItem() {
+        XCTAssertEqual(
+            MenuBarSlotLayout.contents(enabled: [.session], usage: noSessionPlan()),
+            [.session: .weekly]
+        )
+    }
+
+    func testNoSessionPlanHidesSessionWhenWeekEnabled() {
+        XCTAssertEqual(
+            MenuBarSlotLayout.contents(enabled: [.session, .week, .api], usage: noSessionPlan()),
+            [.session: .hidden, .week: .metric, .api: .metric]
+        )
+    }
+
+    func testNoSessionPlanWeekOnlyUnchanged() {
+        XCTAssertEqual(
+            MenuBarSlotLayout.contents(enabled: [.week], usage: noSessionPlan()),
+            [.week: .metric]
+        )
+    }
+
+    func testSpendLimitWinsOverNoSessionPlan() {
+        var usage = usage(session: false, weekly: false, limit: 150000)
+        usage.planHasNoSessionLimit = true
+        XCTAssertEqual(
+            MenuBarSlotLayout.contents(enabled: [.session, .week], usage: usage),
+            [.session: .spend, .week: .hidden]
+        )
+    }
 }
