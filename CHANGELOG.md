@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Themes for the menu bar icons and the popover**: Settings → Theme offers System (the existing look, still the default), Grid (black glass and cyan light lines, styled after Tron Legacy), Night City (neon yellow, cyan, and red with cut corners and segmented bars, styled after Cyberpunk 2077), and Phosphor (an amber CRT terminal). A theme sets the status colors, fonts, bar shapes, and glow in every menu bar icon style, single-profile and multi-profile, with separate colors for a light menu bar, and restyles the popover's background, rows, header, and open animation. Critical usage pulses, glitches, or blinks depending on the theme; animations are off when Reduce Motion is on. The theme is app-wide, not per profile. Orbitron, Exo 2, Rajdhani, Share Tech Mono, and VT323 are bundled under the SIL Open Font License.
+
 ### Changed
 
 - **Auto-start runs on a schedule through the Claude Code CLI**: each profile with auto-start on gets weekday and weekend start and stop times (defaults 07:00 to 20:00 on weekdays and 09:00 to 22:00 on weekends). Inside those hours, when no 5-hour window is open, the app runs `claude -p` with a one-word prompt on Haiku under the profile's own Claude Code login (`CLAUDE_CONFIG_DIR` for a linked config dir, the default `~/.claude` login otherwise, only when it is the same account). A timer fires at each schedule start and window reset, so starts land on time. Failed attempts back off and pause for 5 hours after three tries, and the profile's General settings show the last attempt's result.

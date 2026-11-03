@@ -1118,3 +1118,18 @@
 "cc_accounts.empty" = "No logged-in Claude Code config folders found in your home folder. Log in with claude (or CLAUDE_CONFIG_DIR=~/.claude-name claude), then refresh.";
 "cc_accounts.unknown_pin" = "Linked to %@, which was not found in your home folder.";
 "cc_accounts.linked_count" = "Linked %d profiles.";
+
+/* Theme */
+"section.theme_title" = "Theme";
+"section.theme_desc" = "Menu bar and popover look";
+"theme.title" = "Theme";
+"theme.subtitle" = "Choose how the menu bar icons and the popover look. Applies to all profiles.";
+"theme.name.system" = "System";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "Phosphor";
+"theme.desc.system" = "The standard macOS look with system colors.";
+"theme.desc.grid" = "Black glass and cyan light lines. Critical usage turns orange.";
+"theme.desc.night_city" = "Neon yellow, cyan, and red with cut corners and segmented bars.";
+"theme.desc.phosphor" = "An amber CRT terminal with scanlines and block bars.";
+"theme.footnote" = "Animations are off while Reduce Motion is on in System Settings.";

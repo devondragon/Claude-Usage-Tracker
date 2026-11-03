@@ -1114,3 +1114,18 @@
 "cc_accounts.empty" = "Ana klasörünüzde oturumu açık bir Claude Code yapılandırma klasörü bulunamadı. claude (veya CLAUDE_CONFIG_DIR=~/.claude-ad claude) ile oturum açın, ardından yenileyin.";
 "cc_accounts.unknown_pin" = "%@ ile bağlı, ancak ana klasörünüzde bulunamadı.";
 "cc_accounts.linked_count" = "%d profil bağlandı.";
+
+/* Theme */
+"section.theme_title" = "Tema";
+"section.theme_desc" = "Menü çubuğu ve açılır pencere görünümü";
+"theme.title" = "Tema";
+"theme.subtitle" = "Menü çubuğu simgelerinin ve açılır pencerenin görünümünü seçin. Tüm profillere uygulanır.";
+"theme.name.system" = "Sistem";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "Fosfor";
+"theme.desc.system" = "Sistem renkleriyle standart macOS görünümü.";
+"theme.desc.grid" = "Siyah cam ve camgöbeği ışık çizgileri. Kritik kullanım turuncuya döner.";
+"theme.desc.night_city" = "Kesik köşeler ve bölümlü çubuklarla neon sarı, camgöbeği ve kırmızı.";
+"theme.desc.phosphor" = "Tarama çizgileri ve blok çubuklarıyla kehribar renkli bir CRT terminali.";
+"theme.footnote" = "Sistem Ayarları'nda Hareketi Azalt açıkken animasyonlar kapalıdır.";

@@ -1122,3 +1122,18 @@
 "cc_accounts.empty" = "ホームフォルダにログイン済みの Claude Code 設定フォルダが見つかりません。claude（または CLAUDE_CONFIG_DIR=~/.claude-name claude）でログインしてから更新してください。";
 "cc_accounts.unknown_pin" = "%@ にリンクされていますが、ホームフォルダに見つかりません。";
 "cc_accounts.linked_count" = "%d 件のプロファイルをリンクしました。";
+
+/* Theme */
+"section.theme_title" = "テーマ";
+"section.theme_desc" = "メニューバーとポップオーバーの外観";
+"theme.title" = "テーマ";
+"theme.subtitle" = "メニューバーのアイコンとポップオーバーの外観を選択します。すべてのプロファイルに適用されます。";
+"theme.name.system" = "システム";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "蛍光体";
+"theme.desc.system" = "システムカラーを使った標準の macOS の外観。";
+"theme.desc.grid" = "黒いガラスとシアンの光のライン。使用量が危険域になるとオレンジになります。";
+"theme.desc.night_city" = "ネオンイエロー、シアン、レッドに、角を落としたパネルと分割バー。";
+"theme.desc.phosphor" = "走査線とブロックバーのアンバー色の CRT ターミナル。";
+"theme.footnote" = "システム設定で「視差効果を減らす」がオンの間はアニメーションがオフになります。";

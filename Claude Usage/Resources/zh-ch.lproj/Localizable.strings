@@ -1108,3 +1108,18 @@
 "cc_accounts.empty" = "在主文件夹中未找到已登录的 Claude Code 配置文件夹。请用 claude（或 CLAUDE_CONFIG_DIR=~/.claude-name claude）登录，然后刷新。";
 "cc_accounts.unknown_pin" = "已关联到 %@，但在主文件夹中未找到。";
 "cc_accounts.linked_count" = "已关联 %d 个配置文件。";
+
+/* Theme */
+"section.theme_title" = "主题";
+"section.theme_desc" = "菜单栏和弹出窗口外观";
+"theme.title" = "主题";
+"theme.subtitle" = "选择菜单栏图标和弹出窗口的外观。适用于所有配置文件。";
+"theme.name.system" = "系统";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "荧光";
+"theme.desc.system" = "使用系统颜色的标准 macOS 外观。";
+"theme.desc.grid" = "黑色玻璃与青色光线。用量达到危险水平时变为橙色。";
+"theme.desc.night_city" = "霓虹黄、青色和红色，配以切角面板和分段进度条。";
+"theme.desc.phosphor" = "带扫描线和方块进度条的琥珀色 CRT 终端。";
+"theme.footnote" = "在系统设置中开启“减弱动态效果”时，动画会关闭。";

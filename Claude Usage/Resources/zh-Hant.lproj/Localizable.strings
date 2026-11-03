@@ -1108,3 +1108,18 @@
 "cc_accounts.empty" = "在個人專屬資料夾中找不到已登入的 Claude Code 設定資料夾。請用 claude（或 CLAUDE_CONFIG_DIR=~/.claude-name claude）登入，然後重新整理。";
 "cc_accounts.unknown_pin" = "已連結到 %@，但在個人專屬資料夾中找不到。";
 "cc_accounts.linked_count" = "已連結 %d 個設定檔。";
+
+/* Theme */
+"section.theme_title" = "主題";
+"section.theme_desc" = "選單列與彈出視窗外觀";
+"theme.title" = "主題";
+"theme.subtitle" = "選擇選單列圖像與彈出視窗的外觀。適用於所有設定檔。";
+"theme.name.system" = "系統";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "螢光";
+"theme.desc.system" = "使用系統顏色的標準 macOS 外觀。";
+"theme.desc.grid" = "黑色玻璃與青色光線。用量達到危險程度時會變成橘色。";
+"theme.desc.night_city" = "霓虹黃、青色與紅色，搭配切角面板與分段進度列。";
+"theme.desc.phosphor" = "帶有掃描線與方塊進度列的琥珀色 CRT 終端機。";
+"theme.footnote" = "在系統設定中開啟「減少動態效果」時，動畫會關閉。";

@@ -295,6 +295,8 @@ struct SettingsView: View {
                 // Shared Settings
                 case .appSettings:
                     AppSettingsView()
+                case .theme:
+                    ThemeSettingsView()
                 case .manageProfiles:
                     ManageProfilesView()
                 case .language:
@@ -566,6 +568,7 @@ enum SettingsSection: String, CaseIterable {
 
     // Shared Settings
     case appSettings
+    case theme
     case manageProfiles
     case language
     case claudeCode
@@ -588,6 +591,7 @@ enum SettingsSection: String, CaseIterable {
         case .general: return "section.general_title".localized
         case .history: return "section.history_title".localized
         case .appSettings: return "section.app_settings_title".localized
+        case .theme: return "section.theme_title".localized
         case .manageProfiles: return "section.manage_profiles_title".localized
         case .language: return "language.title".localized
         case .claudeCode: return "settings.claude_cli".localized
@@ -612,6 +616,7 @@ enum SettingsSection: String, CaseIterable {
         case .general: return "gearshape.fill"
         case .history: return "chart.bar.xaxis"
         case .appSettings: return "gearshape.2.fill"
+        case .theme: return "paintpalette.fill"
         case .manageProfiles: return "person.2.fill"
         case .language: return "globe"
         case .claudeCode: return "chevron.left.forwardslash.chevron.right"
@@ -636,6 +641,7 @@ enum SettingsSection: String, CaseIterable {
         case .general: return "section.general_desc".localized
         case .history: return "section.history_desc".localized
         case .appSettings: return "section.app_settings_desc".localized
+        case .theme: return "section.theme_desc".localized
         case .manageProfiles: return "section.manage_profiles_desc".localized
         case .language: return "language.subtitle".localized
         case .claudeCode: return "settings.claude_cli.description".localized

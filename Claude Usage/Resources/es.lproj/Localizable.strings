@@ -1103,3 +1103,18 @@
 "cc_accounts.empty" = "No se encontraron carpetas de configuración de Claude Code con sesión iniciada en tu carpeta personal. Inicia sesión con claude (o CLAUDE_CONFIG_DIR=~/.claude-nombre claude) y luego actualiza.";
 "cc_accounts.unknown_pin" = "Vinculado a %@, que no se encontró en tu carpeta personal.";
 "cc_accounts.linked_count" = "%d perfiles vinculados.";
+
+/* Theme */
+"section.theme_title" = "Tema";
+"section.theme_desc" = "Aspecto de la barra de menús y el popover";
+"theme.title" = "Tema";
+"theme.subtitle" = "Elige el aspecto de los iconos de la barra de menús y del popover. Se aplica a todos los perfiles.";
+"theme.name.system" = "Sistema";
+"theme.name.grid" = "Grid";
+"theme.name.night_city" = "Night City";
+"theme.name.phosphor" = "Fósforo";
+"theme.desc.system" = "El aspecto estándar de macOS con colores del sistema.";
+"theme.desc.grid" = "Cristal negro y líneas de luz cian. El uso crítico se vuelve naranja.";
+"theme.desc.night_city" = "Amarillo neón, cian y rojo con esquinas cortadas y barras segmentadas.";
+"theme.desc.phosphor" = "Un terminal CRT ámbar con líneas de barrido y barras de bloques.";
+"theme.footnote" = "Las animaciones se desactivan mientras Reducir movimiento esté activado en Ajustes del Sistema.";
