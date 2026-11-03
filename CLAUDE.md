@@ -43,7 +43,7 @@ scripts/validate_localizations.sh
 bash test_notch.sh [movie|abuse]
 ```
 
-Daily-use install: `scripts/install-local.sh` builds a signed Release of the current checkout, quits any running copy, and installs it to `/Applications/Claude Usage.app` (`--no-build` reinstalls the last build). It refuses to overwrite an app with a different bundle ID. Run it from `main` after merging. Launch at login (`SMAppService.mainApp`) is tied to the copy that enabled it, so enable it from the `/Applications` copy.
+Daily-use install: `scripts/install-local.sh` builds a signed Release of the current checkout, quits any running copy, and installs it to `/Applications/Claude Usage.app` (`--no-build` reinstalls the last build; `--ad-hoc` signs ad-hoc for a machine without the Developer ID certificate, and profile secrets then stay in the plist). It refuses to overwrite an app with a different bundle ID. Run it from `main` after merging. Launch at login (`SMAppService.mainApp`) is tied to the copy that enabled it, so enable it from the `/Applications` copy.
 
 Unsigned/ad-hoc builds have no reachable data-protection Keychain, so `ProfileStore` keeps profile secrets in the cleartext `profiles_v3` plist instead of the Keychain. This is expected for dev builds (logged once), and it means Keychain-specific behavior can only be verified on a stably signed build.
 
