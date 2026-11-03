@@ -4,7 +4,8 @@
 //
 //  The values one profile's multi-profile menu bar icon draws. Normally a
 //  session bar plus a weekly bar; a spend-limited profile draws one monthly
-//  spend bar instead.
+//  spend bar instead, and a plan with no 5-hour limit (Max 20x / Ultra)
+//  draws one weekly bar.
 //
 
 import Foundation
@@ -42,6 +43,18 @@ struct MultiProfileBarValues: Equatable {
             duration: Constants.weeklyWindow,
             showRemaining: false
         )
+
+        // No session limit: the weekly bar is the only bar, whatever
+        // `showWeek` says, since an always-empty session bar says nothing.
+        if usage.planHasNoSessionLimit {
+            return MultiProfileBarValues(
+                primaryUsed: usage.weeklyPercentage,
+                primaryElapsed: weekElapsed,
+                secondaryUsed: nil,
+                secondaryElapsed: nil,
+                isSpend: false
+            )
+        }
 
         let sessionElapsed = UsageStatusCalculator.elapsedFraction(
             resetTime: usage.sessionResetTime,
