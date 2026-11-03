@@ -116,9 +116,20 @@ private struct ThemeMiniPreview: View {
         return usage
     }
 
+    /// One renderer per theme, kept for the life of the app. Freeing a main-actor class
+    /// goes through the back-deployed isolated deinit on macOS 14 and 15, which has
+    /// aborted the process (seen in CI), so the preview does not create one per redraw.
+    private static var renderers: [AppThemeID: MenuBarIconRenderer] = [:]
+
+    private var renderer: MenuBarIconRenderer {
+        if let existing = Self.renderers[theme.id] { return existing }
+        let created = MenuBarIconRenderer(theme: theme)
+        Self.renderers[theme.id] = created
+        return created
+    }
+
     private var menuBarIcon: NSImage {
-        let renderer = MenuBarIconRenderer(theme: theme)
-        return renderer.createImage(
+        renderer.createImage(
             for: .session,
             config: MetricIconConfig(metricType: .session, isEnabled: true, iconStyle: .progressBar),
             globalConfig: MenuBarIconConfiguration(showTimeMarker: false, showPaceMarker: false, usePaceColoring: false),

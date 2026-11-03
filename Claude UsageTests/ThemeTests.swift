@@ -7,6 +7,10 @@ final class ThemeTests: XCTestCase {
     private var suiteName: String!
     private var defaults: UserDefaults!
     private var store: SharedDataStore!
+    /// Main-actor objects created in a test are kept here so they are freed with the test
+    /// case, not inside the test method. On macOS 14 and 15 the back-deployed isolated
+    /// deinit aborts when it runs inside XCTest's task-local scope (seen in CI).
+    private var keepAlive: [AnyObject] = []
 
     override func setUp() {
         super.setUp()
@@ -47,6 +51,7 @@ final class ThemeTests: XCTestCase {
 
     func testSelectPersistsAndRequestsIconRedraw() {
         let manager = ThemeManager(store: store)
+        keepAlive.append(manager)
         XCTAssertEqual(manager.themeID, .system)
 
         let redraw = expectation(forNotification: .menuBarIconConfigChanged, object: nil)
@@ -56,11 +61,14 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(manager.themeID, .nightCity)
         XCTAssertEqual(manager.current.id, .nightCity)
         XCTAssertEqual(store.loadAppTheme(), .nightCity)
-        XCTAssertEqual(ThemeManager(store: store).themeID, .nightCity, "a new manager reads the saved theme")
+        let reloaded = ThemeManager(store: store)
+        keepAlive.append(reloaded)
+        XCTAssertEqual(reloaded.themeID, .nightCity, "a new manager reads the saved theme")
     }
 
     func testSelectingCurrentThemeDoesNotRedraw() {
         let manager = ThemeManager(store: store)
+        keepAlive.append(manager)
         let redraw = expectation(forNotification: .menuBarIconConfigChanged, object: nil)
         redraw.isInverted = true
         manager.select(.system)
@@ -148,6 +156,7 @@ final class ThemeTests: XCTestCase {
         usage.weeklyPercentage = 40
         for id in AppThemeID.allCases {
             let renderer = MenuBarIconRenderer(theme: id.theme)
+            keepAlive.append(renderer)
             for style in MenuBarIconStyle.allCases {
                 for dark in [true, false] {
                     let image = renderer.createImage(
