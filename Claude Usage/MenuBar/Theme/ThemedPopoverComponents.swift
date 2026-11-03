@@ -253,6 +253,11 @@ struct ThemedTag: View {
     let text: String
 
     var body: some View {
+        tag.fixedSize()
+    }
+
+    @ViewBuilder
+    private var tag: some View {
         switch theme.tagStyle {
         case .capsule:
             Text(text)
@@ -292,12 +297,28 @@ struct ThemedRowTitle: View {
                     .font(theme.detailFont.font(size: 9, weight: .regular))
                     .foregroundColor(theme.accent)
             }
-            Text(theme.label(text))
-                .font(theme.titleFont.font(size: 13, weight: theme.id == .system ? .medium : .bold))
-                .tracking(theme.titleTracking)
-                .foregroundColor(theme.textPrimary)
-                .shadow(color: theme.glow ? theme.accent.opacity(0.35) : .clear, radius: 4)
+            if theme.titleTracking > 0 {
+                // Wide tracked titles step down in size instead of truncating:
+                // truncated tracked text can run under the tag that follows it.
+                ViewThatFits(in: .horizontal) {
+                    title(scale: 1)
+                    title(scale: 0.85)
+                    title(scale: 0.7)
+                }
+            } else {
+                // System theme: unchanged from before themes.
+                title(scale: 1)
+            }
         }
+    }
+
+    private func title(scale: CGFloat) -> some View {
+        Text(theme.label(text))
+            .font(theme.titleFont.font(size: 13 * scale, weight: theme.id == .system ? .medium : .bold))
+            .tracking(theme.titleTracking * scale)
+            .foregroundColor(theme.textPrimary)
+            .shadow(color: theme.glow ? theme.accent.opacity(0.35) : .clear, radius: 4)
+            .lineLimit(theme.titleTracking > 0 ? 1 : nil)
     }
 }
 
@@ -439,6 +460,12 @@ struct ThemedPercent: View {
     }
 
     var body: some View {
+        // A usage number never truncates; the title beside it shrinks instead.
+        percent.fixedSize()
+    }
+
+    @ViewBuilder
+    private var percent: some View {
         switch effect {
         case .none:
             text(color: color)

@@ -336,17 +336,13 @@ struct ProfileSwitcherCompact: View {
                 }
             }
         } label: {
-            HStack(spacing: 3) {
-                Text((theme.profilePrefix ?? "") + theme.label(profileManager.activeProfile?.name ?? "popover.no_profile".localized))
-                    .font(theme.titleFont.font(size: 13, weight: .bold))
-                    .tracking(theme.titleTracking * 0.6)
-                    .foregroundColor(theme.headerText ?? theme.textPrimary)
-                    .shadow(color: theme.glow ? theme.accent.opacity(0.7) : .clear, radius: 5)
-                    .lineLimit(1)
-                if theme.showsCursor {
-                    BlinkingCursor(color: theme.accent)
-                }
-            }
+            // Text only: an AppKit-backed Menu label can drop other views.
+            Text((theme.profilePrefix ?? "") + theme.label(profileManager.activeProfile?.name ?? "popover.no_profile".localized))
+                .font(theme.titleFont.font(size: 13, weight: .bold))
+                .tracking(theme.titleTracking * 0.6)
+                .foregroundColor(theme.headerText ?? theme.textPrimary)
+                .shadow(color: theme.glow ? theme.accent.opacity(0.7) : .clear, radius: 5)
+                .lineLimit(1)
         }
         .menuStyle(.borderlessButton)
         .buttonStyle(.plain)
@@ -532,7 +528,12 @@ struct SmartHeader: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                ProfileSwitcherCompact(onManageProfiles: onManageProfiles)
+                HStack(spacing: 3) {
+                    ProfileSwitcherCompact(onManageProfiles: onManageProfiles)
+                    if theme.showsCursor {
+                        BlinkingCursor(color: theme.accent)
+                    }
+                }
 
                 // Status
                 Button(action: {
@@ -927,6 +928,9 @@ struct UsageRow: View {
                             .foregroundColor(theme.textSecondary)
                     }
                 }
+                // Title column sizes before the spacer, so a themed title only shrinks
+                // when the row is actually too narrow.
+                .layoutPriority(1)
 
                 Spacer()
 
@@ -1167,6 +1171,7 @@ struct APICostCard: View {
                         .font(theme.detailFont.font(size: 10, weight: .regular))
                         .foregroundColor(theme.textSecondary)
                 }
+                .layoutPriority(1)
 
                 Spacer()
 
@@ -1404,6 +1409,7 @@ struct APIUsageCard: View {
                         .font(theme.detailFont.font(size: 10, weight: .regular))
                         .foregroundColor(theme.textSecondary)
                 }
+                .layoutPriority(1)
 
                 Spacer()
 
