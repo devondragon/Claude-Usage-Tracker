@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Auto-start no longer pings Max 20x and Ultra accounts**: these plans have no 5-hour window, so the ping could never open one. Auto-start kept sending three pings, pausing 5 hours, and trying again. It now skips the profile with "the plan has no 5-hour session limit".
+- **The popover hides the 5-hour session row for Max 20x and Ultra**: these plans have no session limit, so the row always showed 0% and a reset time 5 hours out. The weekly rows are unchanged.
 
 ## [3.3.0] - 2026-08-29
 
