@@ -698,8 +698,10 @@ struct SmartUsageDashboard: View {
                 )
             }
 
-            // Primary: Session Usage (not shown for spend-limited accounts)
-            if !usage.isSpendLimited {
+            // Primary: Session Usage. Not shown for spend-limited accounts, or
+            // for plans with no 5-hour limit (Max 20x / Ultra), where the row
+            // would always read 0% with a placeholder reset time.
+            if !usage.isSpendLimited && !usage.planHasNoSessionLimit {
                 UsageRow(
                     title: "menubar.session_usage".localized,
                     subtitle: "menubar.5_hour_window".localized,

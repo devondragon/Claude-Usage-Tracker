@@ -41,6 +41,13 @@ final class AutoStartDecisionTests: XCTestCase {
         XCTAssertEqual(decide(.live(usage(noWindows: true), hasOpenWindow: false)), .skip(.noUsageWindows))
     }
 
+    func testNoSessionLimitPlanSkips() {
+        var u = usage()
+        u.hasSessionWindow = false
+        u.planHasNoSessionLimit = true
+        XCTAssertEqual(decide(.live(u, hasOpenWindow: false)), .skip(.noSessionLimit))
+    }
+
     func testOpenWindowSkipsWithResetTime() {
         let u = usage()
         XCTAssertEqual(decide(.live(u, hasOpenWindow: true)), .skip(.windowOpen(until: u.sessionResetTime)))

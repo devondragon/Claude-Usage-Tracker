@@ -22,6 +22,8 @@ enum AutoStartUsageReading {
 enum AutoStartSkipReason: Equatable {
     case outOfSchedule
     case noUsageWindows
+    /// The plan has no 5-hour limit (Max 20x / Ultra), so a ping cannot open a window.
+    case noSessionLimit
     case windowOpen(until: Date?)
     case weeklyLimitReached
     case backingOff(until: Date)
@@ -51,6 +53,7 @@ enum AutoStartDecision {
             return .skip(.usageFetchFailed(message))
         case .live(let usage, let hasOpenWindow):
             if usage.hasNoUsageWindows { return .skip(.noUsageWindows) }
+            if usage.planHasNoSessionLimit { return .skip(.noSessionLimit) }
             if hasOpenWindow { return .skip(.windowOpen(until: usage.sessionResetTime)) }
             if usage.weeklyPercentage >= 100 { return .skip(.weeklyLimitReached) }
         case .tokenExpired:
