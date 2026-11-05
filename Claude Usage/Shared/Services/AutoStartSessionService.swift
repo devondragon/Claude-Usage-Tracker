@@ -275,9 +275,9 @@ final class AutoStartSessionService {
             if hasOpenWindow {
                 knownResetTimes[profile.id] = usage.sessionResetTime
             }
-            // A window seen open, or an account with no windows, ends the
-            // current run of attempts.
-            if hasOpenWindow || usage.hasNoUsageWindows {
+            // A window seen open, or an account that has no session window
+            // to open, ends the current run of attempts.
+            if hasOpenWindow || usage.hasNoUsageWindows || usage.planHasNoSessionLimit {
                 attemptStore.clear(for: profile.id)
             }
         }
@@ -418,7 +418,10 @@ final class AutoStartSessionService {
 
         if profile.hasClaudeAI {
             do {
-                let (usage, hasOpenWindow) = try await fetchUsageWithCookie(for: profile)
+                let (fetched, hasOpenWindow) = try await fetchUsageWithCookie(for: profile)
+                let usage = fetched.stampingPlan(
+                    noSessionLimit: profile.oauthAccountJSON.flatMap(AnthropicUsageProvider.planHasNoSessionLimit(oauthAccountJSON:))
+                )
                 // Accounts without usage windows are not saved: claude.ai's
                 // response carries no spend, and saving it would drop the spend
                 // the main refresh stored.
@@ -470,7 +473,11 @@ final class AutoStartSessionService {
             switch http.statusCode {
             case 200:
                 let (usage, hasOpenWindow) = try Self.parseUsageResponse(data, now: now())
-                return .live(usage, hasOpenWindow: hasOpenWindow)
+                // The plan decides whether a closed window can be opened at all.
+                let stamped = usage.stampingPlan(
+                    noSessionLimit: AnthropicUsageProvider.planHasNoSessionLimit(credentialsJSON: credentials)
+                )
+                return .live(stamped, hasOpenWindow: hasOpenWindow)
             case 401, 403:
                 return .tokenExpired
             default:
@@ -752,6 +759,8 @@ final class AutoStartSessionService {
             return "outside the auto-start schedule"
         case .noUsageWindows:
             return "the account has no session or weekly window"
+        case .noSessionLimit:
+            return "the plan has no 5-hour session limit"
         case .windowOpen(let until):
             return until.map { "a session window is already open until \($0)" } ?? "a session window is already open"
         case .weeklyLimitReached:

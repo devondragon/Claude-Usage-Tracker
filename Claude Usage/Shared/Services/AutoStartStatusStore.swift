@@ -85,6 +85,7 @@ struct AutoStartStatusStore {
         switch reason {
         case .outOfSchedule: return "outOfSchedule"
         case .noUsageWindows: return "noUsageWindows"
+        case .noSessionLimit: return "noSessionLimit"
         case .windowOpen: return "windowOpen"
         case .weeklyLimitReached: return "weeklyLimitReached"
         case .backingOff: return "backingOff"
