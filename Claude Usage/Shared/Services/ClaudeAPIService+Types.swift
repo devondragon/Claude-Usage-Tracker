@@ -115,6 +115,7 @@ extension ClaudeAPIService {
     struct UsageCostEntry: Codable {
         let workspaceId: String?
         let keyId: String?
+        let keyName: String?
         let modelName: String?
         let total: Double?
         let tokenType: String?
@@ -123,6 +124,7 @@ extension ClaudeAPIService {
         enum CodingKeys: String, CodingKey {
             case workspaceId = "workspace_id"
             case keyId = "key_id"
+            case keyName = "key_name"
             case modelName = "model_name"
             case total
             case tokenType = "token_type"

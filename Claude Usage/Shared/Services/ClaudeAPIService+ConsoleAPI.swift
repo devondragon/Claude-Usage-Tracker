@@ -86,18 +86,26 @@ extension ClaudeAPIService {
         }
     }
 
-    /// Fetches usage cost data from Platform API for the current billing month
+    /// Fetches usage cost data from Platform API for the current billing month.
+    /// Uses the org-level endpoint so every workspace is included: `current_spend`
+    /// is org-wide, and the per-workspace `workspaces/default/usage_cost` left
+    /// spend in other workspaces out of the breakdown. The billing month and the
+    /// Console's dates are UTC.
     func fetchUsageCost(organizationId: String, apiSessionKey: String) async throws -> UsageCostResponse {
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
         let now = Date()
         let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
         let startOfNextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth)!
 
         let dateFormatter = DateFormatter()
+        dateFormatter.calendar = calendar
+        dateFormatter.timeZone = calendar.timeZone
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
         let url = try URLBuilder(baseURL: consoleBaseURL)
-            .appendingPathComponents(["/organizations", organizationId, "/workspaces/default/usage_cost"])
+            .appendingPathComponents(["/organizations", organizationId, "/usage_cost"])
             .addingQueryParameter(name: "starting_on", value: dateFormatter.string(from: startOfMonth))
             .addingQueryParameter(name: "ending_before", value: dateFormatter.string(from: startOfNextMonth))
             .addingQueryParameter(name: "group_by", value: "api_key_id")
@@ -213,6 +221,7 @@ extension ClaudeAPIService {
             var modelCosts: [String: Double] = [:]
             var perKeyTotal: [String: Double] = [:]
             var perKeyModels: [String: [String: Double]] = [:]
+            var perKeyName: [String: String] = [:]
 
             func processEntry(_ entry: UsageCostEntry, modelName: String, dateKey: String) {
                 let cost = entry.safeTotal
@@ -221,6 +230,7 @@ extension ClaudeAPIService {
                 modelCosts[modelName, default: 0] += cost
                 perKeyTotal[key, default: 0] += cost
                 perKeyModels[key, default: [:]][modelName, default: 0] += cost
+                if let name = entry.keyName, !name.isEmpty { perKeyName[key] = name }
                 dailyTotals[dateKey, default: 0] += cost
             }
 
@@ -254,7 +264,8 @@ extension ClaudeAPIService {
 
             if !perKeyTotal.isEmpty {
                 costSources = perKeyTotal.map { keyId, keyCents in
-                    let name = keyNames[keyId] ?? keyId
+                    // The keys list is active keys only; the cost entry carries its own name.
+                    let name = keyNames[keyId] ?? perKeyName[keyId] ?? keyId
                     return APICostSource(
                         keyId: keyId,
                         keyName: name,
