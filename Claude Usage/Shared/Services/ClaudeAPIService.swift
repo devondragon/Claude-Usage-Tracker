@@ -137,14 +137,67 @@ class ClaudeAPIService: APIServiceProtocol {
     /// challenged or rejected with E3000 permission errors even when the
     /// session is valid (#204, #277) — every claude.ai call must go through
     /// this, not just `performRequest`.
-    static func sessionCookieHeader(sessionKey: String, url: URL) -> String {
+    static func sessionCookieHeader(sessionKey: String, url: URL, storage: HTTPCookieStorage = .shared) -> String {
         var cookiePairs = ["sessionKey=\(sessionKey)"]
-        if let stored = HTTPCookieStorage.shared.cookies(for: url) {
-            for cookie in stored where ["cf_clearance", "__cf_bm", "anthropic-device-id"].contains(cookie.name) {
-                cookiePairs.append("\(cookie.name)=\(cookie.value)")
-            }
+        for cookie in clearanceCookies(host: url.host ?? "", in: storage.cookies ?? []) {
+            cookiePairs.append("\(cookie.name)=\(cookie.value)")
         }
         return cookiePairs.joined(separator: "; ")
+    }
+
+    /// Cookies (besides `sessionKey`) that claude.ai's Cloudflare front expects
+    /// to see next to a session.
+    static let clearanceCookieNames: Set<String> = ["cf_clearance", "__cf_bm", "anthropic-device-id"]
+
+    /// Picks the clearance cookies for `host` out of a cookie-jar snapshot.
+    ///
+    /// On current macOS `HTTPCookieStorage.cookies(for:)` leaves out partitioned
+    /// cookies (CHIPS), and Cloudflare sets `cf_clearance` with the
+    /// `Partitioned` attribute. So the one cookie that proves the sign-in
+    /// webview passed a challenge never reached the header: every request went
+    /// out as `sessionKey; __cf_bm; anthropic-device-id`, which Cloudflare
+    /// challenges again on networks it distrusts — a 403 "Just a moment" page
+    /// (E3006) seconds after a successful sign-in. `HTTPCookieStorage.cookies`
+    /// does include partitioned entries, so match the whole jar by cookie
+    /// domain instead and keep the freshest unexpired cookie per name.
+    static func clearanceCookies(host: String, in jar: [HTTPCookie]) -> [HTTPCookie] {
+        let host = host.lowercased()
+        let createdKey = HTTPCookiePropertyKey("Created")
+        var byName: [String: HTTPCookie] = [:]
+
+        // A domain cookie (".claude.ai") covers the host and its subdomains; a
+        // host-only cookie ("claude.ai") covers exactly that host.
+        func matchesHost(_ cookie: HTTPCookie) -> Bool {
+            let domain = cookie.domain.lowercased()
+            guard !domain.isEmpty else { return false }
+            if domain.hasPrefix(".") {
+                let bare = String(domain.dropFirst())
+                return host == bare || host.hasSuffix("." + bare)
+            }
+            return host == domain
+        }
+        // Newest wins on duplicates: the jar records each cookie's creation
+        // time, and Cloudflare stamps a fresh expiry on every clearance it
+        // issues. Creation time decides, expiry breaks ties, and the value is a
+        // last resort so the header is deterministic.
+        func created(_ cookie: HTTPCookie) -> Double {
+            (cookie.properties?[createdKey] as? NSNumber)?.doubleValue ?? 0
+        }
+        func isFresher(_ candidate: HTTPCookie, than current: HTTPCookie) -> Bool {
+            if created(candidate) != created(current) { return created(candidate) > created(current) }
+            let candidateExpiry = candidate.expiresDate ?? .distantPast
+            let currentExpiry = current.expiresDate ?? .distantPast
+            if candidateExpiry != currentExpiry { return candidateExpiry > currentExpiry }
+            return candidate.value > current.value
+        }
+
+        for cookie in jar {
+            guard clearanceCookieNames.contains(cookie.name), matchesHost(cookie) else { continue }
+            if let expiry = cookie.expiresDate, expiry < Date() { continue }
+            if let current = byName[cookie.name], !isFresher(cookie, than: current) { continue }
+            byName[cookie.name] = cookie
+        }
+        return byName.values.sorted { $0.name < $1.name }
     }
 
     /// Builds an authenticated request with the appropriate headers for the auth type
@@ -440,7 +493,13 @@ class ClaudeAPIService: APIServiceProtocol {
         let organizations = try await fetchAllOrganizations(sessionKey: sessionKey)
 
         // Auto-select organization (prefer first one for now - user can change later)
-        let selectedOrg = organizations.first!
+        guard let selectedOrg = Self.preferredOrganization(from: organizations) else {
+            throw AppError(
+                code: .apiInvalidResponse,
+                message: "No organizations found for this account",
+                isRecoverable: true
+            )
+        }
         LoggingService.shared.logInfo("Auto-selected organization: \(selectedOrg.name) (ID: \(selectedOrg.uuid))")
 
         // Store the selected org ID in active profile
@@ -616,8 +675,10 @@ class ClaudeAPIService: APIServiceProtocol {
             // what we're here to measure. The unified rate-limit headers are
             // still present on 429 responses, so parse them instead of
             // failing the refresh right when the user most needs the data.
+            // Plans without a 5-hour window (Ultra) only send the 7d headers.
             let has429UsageHeaders = httpResponse.statusCode == 429
-                && httpResponse.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-utilization") != nil
+                && (httpResponse.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-utilization") != nil
+                    || httpResponse.value(forHTTPHeaderField: "anthropic-ratelimit-unified-7d-utilization") != nil)
 
             guard httpResponse.statusCode == 200 || has429UsageHeaders else {
                 let responsePreview = String(data: data, encoding: .utf8)?.prefix(200) ?? "Unable to read response"
