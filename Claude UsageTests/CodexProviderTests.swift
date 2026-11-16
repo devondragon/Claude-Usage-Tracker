@@ -269,6 +269,69 @@ final class CodexProviderTests: XCTestCase {
         XCTAssertEqual(usage.creditsUnlimited, true)
     }
 
+    // MARK: - Codex Pro has no five-hour limit (#342, upstream 44062b0)
+
+    func testProIgnoresSessionLimitEvenWhenAPIReportsAWindow() {
+        let sessionReset = Int(Date().addingTimeInterval(60 * 60).timeIntervalSince1970)
+        let response = CodexUsageResponse(
+            planType: "pro",
+            rateLimit: CodexRateLimitDetails(
+                primaryWindow: CodexRateWindow(usedPercent: 99, resetAt: sessionReset, limitWindowSeconds: 18000),
+                secondaryWindow: CodexRateWindow(usedPercent: 17, resetAt: nil, limitWindowSeconds: 604800)
+            ),
+            credits: nil
+        )
+        let usage = CodexAPIService.mapToUsage(response)
+
+        XCTAssertTrue(usage.planHasNoSessionLimit)
+        XCTAssertEqual(usage.weeklyPercentage, 17)
+    }
+
+    func testProWeeklyOnlyWindowHasNoSessionLimit() throws {
+        let response = try decodeResponse("""
+        {
+            "plan_type": "pro",
+            "rate_limit": {
+                "primary_window": {"used_percent": 37, "reset_at": 1789500000, "limit_window_seconds": 604800}
+            }
+        }
+        """)
+        let usage = CodexAPIService.mapToUsage(response)
+
+        XCTAssertTrue(usage.planHasNoSessionLimit)
+        XCTAssertEqual(usage.weeklyPercentage, 37)
+        XCTAssertEqual(usage.weeklyResetTime, Date(timeIntervalSince1970: 1789500000))
+    }
+
+    func testOtherPlansKeepSessionLimits() {
+        for plan in ["plus", "business", "some_new_plan", nil] {
+            let response = CodexUsageResponse(
+                planType: plan,
+                rateLimit: CodexRateLimitDetails(
+                    primaryWindow: CodexRateWindow(usedPercent: 42, resetAt: nil, limitWindowSeconds: 18000),
+                    secondaryWindow: nil
+                ),
+                credits: nil
+            )
+            let usage = CodexAPIService.mapToUsage(response)
+
+            XCTAssertFalse(usage.planHasNoSessionLimit, "Unexpected session behavior for \(plan ?? "nil")")
+            XCTAssertEqual(usage.effectiveSessionPercentage, 42)
+        }
+    }
+
+    func testWeeklyOnlyResponseWithoutProPlanKeepsSessionLimit() throws {
+        let response = try decodeResponse("""
+        {
+            "plan_type": "plus",
+            "rate_limit": {
+                "primary_window": {"used_percent": 12, "reset_at": 1789500000, "limit_window_seconds": 604800}
+            }
+        }
+        """)
+        XCTAssertFalse(CodexAPIService.mapToUsage(response).planHasNoSessionLimit)
+    }
+
     func testMapToUsageMissingWeeklyGivesZeroPercent() throws {
         let response = try decodeResponse("""
         {"rate_limit": {"primary_window": {"used_percent": 99, "reset_at": 1789000000, "limit_window_seconds": 18000}}}

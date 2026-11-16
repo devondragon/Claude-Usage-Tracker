@@ -177,6 +177,11 @@ final class CodexAPIService {
         }
 
         usage.planType = response.planType
+        // Codex Pro has no five-hour limit (#342), so a five-hour window still
+        // reported for it is ignored. Unlike upstream, a response without a
+        // five-hour window is not enough on its own: on Anthropic that also
+        // means an idle session, and it is unverified for Codex.
+        usage.planHasNoSessionLimit = response.planType == "pro"
         if let credits = response.credits {
             usage.creditsUnlimited = credits.unlimited
             usage.creditsBalance = credits.balance

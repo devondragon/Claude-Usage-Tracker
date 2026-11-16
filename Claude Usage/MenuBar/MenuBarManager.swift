@@ -1519,6 +1519,11 @@ class MenuBarManager: NSObject, ObservableObject {
     ) {
         // Accounts without usage windows have no session to record.
         guard !newUsage.hasNoUsageWindows else { return }
+        // Nor do plans without a 5-hour limit (Ultra, Codex Pro).
+        guard !newUsage.planHasNoSessionLimit else {
+            lastKnownSessionResetTime.removeValue(forKey: profileId)
+            return
+        }
         let lastKnown = lastKnownSessionResetTime[profileId]
         let newResetTime = newUsage.sessionResetTime
 

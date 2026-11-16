@@ -184,7 +184,7 @@ class UsageHistoryService {
             LoggingService.shared.logInfo("recordSessionReset: No previous usage data to record")
             return
         }
-        guard !usage.hasNoUsageWindows else { return }
+        guard !usage.hasNoUsageWindows, !usage.planHasNoSessionLimit else { return }
 
         // Only record if there was actual usage
         guard usage.sessionTokensUsed > 0 || usage.sessionPercentage > 0 else {
@@ -240,6 +240,9 @@ class UsageHistoryService {
 
     /// Records session usage periodically (every 10 minutes)
     func recordSessionPeriodic(for profileId: UUID, usage: ClaudeUsage, provider: Provider = .anthropic) {
+        // Plans without a 5-hour limit (Ultra, Codex Pro) have no session to record.
+        guard !usage.planHasNoSessionLimit else { return }
+
         // Accounts without usage windows (Enterprise seats) have nothing to chart.
         guard !usage.hasNoUsageWindows else { return }
         let now = Date()
