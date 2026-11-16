@@ -20,6 +20,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return
         }
 
+        // macOS only stops a second launch of the same copy. A second copy (an
+        // old build left as a login item, say) would poll the same accounts,
+        // rewrite the same history file and fight over the notch hook port.
+        if RunningInstanceGuard.shared.anotherCopyIsRunning() {
+            NSApp.terminate(nil)
+            return
+        }
+
         // Disable window restoration for menu bar app
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
 
@@ -62,6 +70,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // would never appear. Creating it here guarantees the app has a working
         // `menuBarManager` reference even if the wizard never visibly opens.
         menuBarManager = MenuBarManager()
+
+        // Warn when the upstream app runs beside this fork (now or later).
+        RunningInstanceGuard.shared.startWatchingForUpstreamApp()
 
         // Claude Code notch HUD (opt-in): start the hook listener + HUD when
         // enabled, and react to the settings toggle at runtime.

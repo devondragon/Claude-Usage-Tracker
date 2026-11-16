@@ -58,6 +58,7 @@
 /* ==================== */
 "menubar.claude_usage" = "Використання Claude";
 "menubar.session_usage" = "Використання сесії";
+"menubar.session_remaining" = "Залишок сесії";
 "menubar.weekly_usage" = "Тижневе";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -930,6 +931,7 @@
 "popover.time_format_24h" = "24-годинний";
 "popover.time_format_system" = "Системний";
 "popover.overage_balance" = "Баланс";
+"popover.no_limits_reported" = "Цей план не повідомляє лімітів використання, тому тут нічого відстежувати.";
 "popover.banner.credentials_expired" = "Облікові дані застаріли. Оновіть у Налаштуваннях.";
 "popover.banner.refresh_failed" = "Оновлення не вдалося %d разів";
 "popover.banner.updated_ago" = "Оновлено %dхв тому";
@@ -1132,3 +1134,9 @@
 "theme.desc.night_city" = "Неоново-жовтий, блакитний і червоний зі зрізаними кутами та сегментованими смугами.";
 "theme.desc.phosphor" = "Бурштиновий ЕПТ-термінал із рядками розгортки та блоковими смугами.";
 "theme.footnote" = "Анімації вимкнено, поки в Системних параметрах увімкнено «Зменшити рух».";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "Запущено оригінальний Claude Usage Tracker";
+"duplicate.upstream_message" = "Поруч із цією програмою працює інша збірка Claude Usage Tracker. Обидві опитують ті самі облікові записи й використовують той самий порт хуків вирізу, тому можуть заважати одна одній. Якщо вона повернулася після оновлення, видаліть її командою: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Закрити іншу програму";
+"duplicate.keep_both" = "Залишити обидві";

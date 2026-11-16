@@ -59,6 +59,7 @@
 /* ==================== */
 "menubar.claude_usage" = "Claude 使用情况";
 "menubar.session_usage" = "会话使用量";
+"menubar.session_remaining" = "会话剩余量";
 "menubar.weekly_usage" = "每周";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -971,6 +972,7 @@
 
 // MARK: - Overage Balance
 "popover.overage_balance" = "余额";
+"popover.no_limits_reported" = "此套餐未报告使用限额，因此这里没有可显示的内容。";
 
 // MARK: - Setup Wizard CLI Detection
 "setup.cli_detecting" = "正在检查CLI凭证...";
@@ -1123,3 +1125,9 @@
 "theme.desc.night_city" = "霓虹黄、青色和红色，配以切角面板和分段进度条。";
 "theme.desc.phosphor" = "带扫描线和方块进度条的琥珀色 CRT 终端。";
 "theme.footnote" = "在系统设置中开启“减弱动态效果”时，动画会关闭。";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "原版 Claude Usage Tracker 正在运行";
+"duplicate.upstream_message" = "另一个 Claude Usage Tracker 版本正与此 App 同时运行。两者会查询相同的账号并使用相同的刘海 Hook 端口，可能相互干扰。如果它在更新后又回来了，请用以下命令移除：brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "退出另一个 App";
+"duplicate.keep_both" = "两者都保留";

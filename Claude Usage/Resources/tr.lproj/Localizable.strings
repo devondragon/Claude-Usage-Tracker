@@ -58,6 +58,7 @@
 /* ==================== */
 "menubar.claude_usage" = "Claude Kullanım";
 "menubar.session_usage" = "Oturum Kullanımı";
+"menubar.session_remaining" = "Kalan Oturum";
 "menubar.weekly_usage" = "Haftalık";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -977,6 +978,7 @@
 
 // MARK: - Overage Balance
 "popover.overage_balance" = "Bakiye";
+"popover.no_limits_reported" = "Bu plan kullanım sınırı bildirmiyor; bu yüzden burada izlenecek bir şey yok.";
 
 // MARK: - Setup Wizard CLI Detection
 "setup.cli_detecting" = "CLI kimlik bilgileri kontrol ediliyor...";
@@ -1129,3 +1131,9 @@
 "theme.desc.night_city" = "Kesik köşeler ve bölümlü çubuklarla neon sarı, camgöbeği ve kırmızı.";
 "theme.desc.phosphor" = "Tarama çizgileri ve blok çubuklarıyla kehribar renkli bir CRT terminali.";
 "theme.footnote" = "Sistem Ayarları'nda Hareketi Azalt açıkken animasyonlar kapalıdır.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "Orijinal Claude Usage Tracker çalışıyor";
+"duplicate.upstream_message" = "Bu uygulamanın yanında başka bir Claude Usage Tracker derlemesi çalışıyor. İkisi de aynı hesapları sorguluyor ve aynı çentik kancası bağlantı noktasını kullanıyor, bu yüzden birbirlerini etkileyebilirler. Bir güncellemeden sonra geri geldiyse şununla kaldırın: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Diğer uygulamadan çık";
+"duplicate.keep_both" = "İkisini de tut";

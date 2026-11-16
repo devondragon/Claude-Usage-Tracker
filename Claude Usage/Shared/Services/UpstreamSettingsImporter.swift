@@ -17,7 +17,7 @@ import Foundation
 /// app would raise a Keychain password prompt per item. Profiles come across
 /// without secrets and need a CLI re-sync or sign-in.
 enum UpstreamSettingsImporter {
-    static let upstreamBundleIdentifier = "HamedElfayome.Claude-Usage"
+    nonisolated static let upstreamBundleIdentifier = "HamedElfayome.Claude-Usage"
     static let importedFlagKey = "fork.upstreamSettingsImported_v1"
 
     /// Keys never copied: Sparkle state belongs to the upstream feed, and the

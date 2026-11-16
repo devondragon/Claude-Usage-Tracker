@@ -58,6 +58,7 @@
 /* ==================== */
 "menubar.claude_usage" = "Utilisation Claude";
 "menubar.session_usage" = "Utilisation de Session";
+"menubar.session_remaining" = "Session restante";
 "menubar.weekly_usage" = "Hebdomadaire";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -951,6 +952,7 @@
 
 // MARK: - Overage Balance
 "popover.overage_balance" = "Solde";
+"popover.no_limits_reported" = "Ce forfait ne communique aucune limite d'utilisation ; il n'y a donc rien à suivre ici.";
 
 // MARK: - Setup Wizard CLI Detection
 "setup.cli_detecting" = "Recherche des identifiants CLI...";
@@ -1115,3 +1117,9 @@
 "theme.desc.night_city" = "Jaune néon, cyan et rouge avec coins coupés et barres segmentées.";
 "theme.desc.phosphor" = "Un terminal CRT ambre avec lignes de balayage et barres en blocs.";
 "theme.footnote" = "Les animations sont désactivées lorsque Réduire les animations est activé dans Réglages Système.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "Le Claude Usage Tracker d'origine est en cours d'exécution";
+"duplicate.upstream_message" = "Une autre version de Claude Usage Tracker s'exécute à côté de celle-ci. Les deux interrogent les mêmes comptes et utilisent le même port de hooks de l'encoche, elles peuvent donc se gêner. Si elle est revenue après une mise à jour, supprimez-la avec : brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Quitter l'autre app";
+"duplicate.keep_both" = "Garder les deux";

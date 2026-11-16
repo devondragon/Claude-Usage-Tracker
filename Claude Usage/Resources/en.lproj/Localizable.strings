@@ -58,6 +58,7 @@
 /* ==================== */
 "menubar.claude_usage" = "Claude Usage";
 "menubar.session_usage" = "Session Usage";
+"menubar.session_remaining" = "Session Remaining";
 "menubar.weekly_usage" = "Weekly";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -981,6 +982,7 @@
 
 // MARK: - Overage Balance
 "popover.overage_balance" = "Balance";
+"popover.no_limits_reported" = "This plan reports no usage limits, so there is nothing to track here.";
 
 // MARK: - Setup Wizard CLI Detection
 "setup.cli_detecting" = "Checking for CLI credentials...";
@@ -1133,3 +1135,9 @@
 "theme.desc.night_city" = "Neon yellow, cyan, and red with cut corners and segmented bars.";
 "theme.desc.phosphor" = "An amber CRT terminal with scanlines and block bars.";
 "theme.footnote" = "Animations are off while Reduce Motion is on in System Settings.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "The original Claude Usage Tracker is running";
+"duplicate.upstream_message" = "Another build of Claude Usage Tracker is running beside this one. Both poll the same accounts and use the same notch hook port, so they can interfere. If it came back after an update, remove it with: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Quit the Other App";
+"duplicate.keep_both" = "Keep Both";

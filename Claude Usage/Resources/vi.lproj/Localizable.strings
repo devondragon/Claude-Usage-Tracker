@@ -58,6 +58,7 @@
 /* ==================== */
 "menubar.claude_usage" = "Claude Usage";
 "menubar.session_usage" = "Mức dùng phiên";
+"menubar.session_remaining" = "Phiên còn lại";
 "menubar.weekly_usage" = "Hàng tuần";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -981,6 +982,7 @@
 
 // MARK: - Overage Balance
 "popover.overage_balance" = "Số dư";
+"popover.no_limits_reported" = "Gói này không báo cáo giới hạn sử dụng nên không có gì để theo dõi ở đây.";
 
 // MARK: - Setup Wizard CLI Detection
 "setup.cli_detecting" = "Đang kiểm tra thông tin đăng nhập CLI...";
@@ -1135,3 +1137,9 @@
 "theme.desc.night_city" = "Vàng neon, lục lam và đỏ với góc vát và thanh phân đoạn.";
 "theme.desc.phosphor" = "Một màn hình CRT màu hổ phách với đường quét và thanh khối.";
 "theme.footnote" = "Hoạt ảnh bị tắt khi Giảm chuyển động đang bật trong Cài đặt hệ thống.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "Claude Usage Tracker gốc đang chạy";
+"duplicate.upstream_message" = "Một bản dựng khác của Claude Usage Tracker đang chạy song song với ứng dụng này. Cả hai cùng truy vấn các tài khoản giống nhau và dùng cùng cổng hook của notch nên có thể xung đột. Nếu nó quay lại sau khi cập nhật, hãy gỡ bằng: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Thoát ứng dụng kia";
+"duplicate.keep_both" = "Giữ cả hai";
