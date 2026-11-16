@@ -675,8 +675,10 @@ class ClaudeAPIService: APIServiceProtocol {
             // what we're here to measure. The unified rate-limit headers are
             // still present on 429 responses, so parse them instead of
             // failing the refresh right when the user most needs the data.
+            // Plans without a 5-hour window (Ultra) only send the 7d headers.
             let has429UsageHeaders = httpResponse.statusCode == 429
-                && httpResponse.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-utilization") != nil
+                && (httpResponse.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-utilization") != nil
+                    || httpResponse.value(forHTTPHeaderField: "anthropic-ratelimit-unified-7d-utilization") != nil)
 
             guard httpResponse.statusCode == 200 || has429UsageHeaders else {
                 let responsePreview = String(data: data, encoding: .utf8)?.prefix(200) ?? "Unable to read response"
