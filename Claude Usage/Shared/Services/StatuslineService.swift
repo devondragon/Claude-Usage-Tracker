@@ -114,7 +114,7 @@ exit(1)
     /// Bash script that builds the statusline display.
     /// Installed to ~/.claude/statusline-command.sh and configured in Claude Code settings.json.
     /// Reads user preferences from ~/.claude/statusline-config.txt and displays selected components.
-    private let bashScript = """
+    let bashScript = """
 #!/bin/bash
 config_file="$HOME/.claude/statusline-config.txt"
 if [ -f "$config_file" ]; then
@@ -895,7 +895,14 @@ printf "%s\\n" "$output"
 
         // Install bash script
         let bashDestination = claudeDir.appendingPathComponent("statusline-command.sh")
-        try bashScript.write(to: bashDestination, atomically: true, encoding: .utf8)
+        if Self.shouldWriteBashScript(
+            installed: try? String(contentsOf: bashDestination, encoding: .utf8),
+            new: bashScript
+        ) {
+            try backUpEditedBashScriptIfNeeded(at: bashDestination)
+            try bashScript.write(to: bashDestination, atomically: true, encoding: .utf8)
+            UserDefaults.standard.set(Self.contentFingerprint(bashScript), forKey: Self.lastWrittenBashScriptKey)
+        }
         try FileManager.default.setAttributes(
             // Owner-only: the script embeds the raw session key (GHSA-mfxh-xpwm-23c7 / #267)
             // and is only ever executed by Claude Code running as the same user.
@@ -906,10 +913,77 @@ printf "%s\\n" "$output"
         print("[StatuslineService] Bash script installed to: \(bashDestination.path)")
     }
 
+    // MARK: - Protecting hand-edited scripts (#321)
+
+    /// UserDefaults key holding the fingerprint of the bash script this app last wrote.
+    static let lastWrittenBashScriptKey = "statuslineLastWrittenBashScriptFingerprint"
+
+    /// A stable fingerprint of a script's text.
+    static func contentFingerprint(_ content: String) -> String {
+        ClaudeCodeSyncService.shared.sha256HexPrefix(content, length: 64)
+    }
+
+    /// The installed script is only rewritten when the shipped one differs from it,
+    /// so a launch that changes nothing leaves the file (and its modification date) alone.
+    static func shouldWriteBashScript(installed: String?, new: String) -> Bool {
+        installed != new
+    }
+
+    /// Whether the installed script was changed by someone other than this app:
+    /// it differs from the text this app last wrote. With no record of a previous
+    /// write (first launch after this check was added) the script counts as edited,
+    /// so the one unknown case errs towards keeping a copy.
+    static func isUserEdited(installed: String, lastWrittenFingerprint: String?) -> Bool {
+        contentFingerprint(installed) != lastWrittenFingerprint
+    }
+
+    /// Whether a `statusline-command.sh` is one this app installed. Every version
+    /// of the app's script runs `fetch-claude-usage.swift`; a statusline of the
+    /// user's own at the same path does not.
+    static func isAppScript(_ content: String) -> Bool {
+        content.contains("fetch-claude-usage.swift")
+    }
+
+    /// The name for a backup of the script taken at `date`. Timestamped so a later
+    /// backup never replaces an earlier one.
+    static func backupFileName(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "statusline-command.sh.backup-\(formatter.string(from: date))"
+    }
+
+    /// Copies a hand-edited `statusline-command.sh` next to itself before it is
+    /// replaced. Throws when the copy fails, so the script is not overwritten
+    /// without one.
+    private func backUpEditedBashScriptIfNeeded(at url: URL) throws {
+        guard let installed = try? String(contentsOf: url, encoding: .utf8),
+              Self.isUserEdited(
+                  installed: installed,
+                  lastWrittenFingerprint: UserDefaults.standard.string(forKey: Self.lastWrittenBashScriptKey)
+              ) else {
+            return
+        }
+        let backupURL = url.deletingLastPathComponent()
+            .appendingPathComponent(Self.backupFileName(for: Date()))
+        do {
+            try installed.write(to: backupURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: backupURL.path)
+            LoggingService.shared.log("Statusline: the installed script had local changes; saved a copy to \(backupURL.lastPathComponent) before updating it")
+        } catch {
+            LoggingService.shared.logError("Statusline: could not back up the edited script, so it was not replaced", error: error)
+            throw error
+        }
+    }
+
     /// Removes the session key from the statusline Swift script
     func removeSessionKeyFromScript() throws {
         let swiftDestination = Constants.ClaudePaths.claudeDirectory
             .appendingPathComponent("fetch-claude-usage.swift")
+
+        // Nothing to clear when the script was never installed. Writing the
+        // placeholder anyway would make `isInstalled` true on its own.
+        guard FileManager.default.fileExists(atPath: swiftDestination.path) else { return }
 
         // Replace with placeholder script that returns error
         try placeholderSwiftScript.write(to: swiftDestination, atomically: true, encoding: .utf8)
@@ -1060,7 +1134,7 @@ ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
                 "command": "bash \(commandPath)"
             ]
 
-            let jsonData = try JSONSerialization.data(withJSONObject: settings, options: .prettyPrinted)
+            let jsonData = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .withoutEscapingSlashes])
             try jsonData.write(to: settingsPath)
         } else {
             // Remove session key from Swift script
@@ -1069,10 +1143,14 @@ ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
             // Update settings.json
             if FileManager.default.fileExists(atPath: settingsPath.path) {
                 let existingData = try Data(contentsOf: settingsPath)
-                if var settings = try JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+                // Leave a statusline of the user's own in place: only remove the
+                // entry when it runs this app's script.
+                if var settings = try JSONSerialization.jsonObject(with: existingData) as? [String: Any],
+                   Self.statusLineUsesOurScript(settings),
+                   installedBashScriptIsOurs(orMissing: true) {
                     settings.removeValue(forKey: "statusLine")
 
-                    let jsonData = try JSONSerialization.data(withJSONObject: settings, options: .prettyPrinted)
+                    let jsonData = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .withoutEscapingSlashes])
                     try jsonData.write(to: settingsPath)
                 }
             }
@@ -1089,7 +1167,40 @@ ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
             .appendingPathComponent("statusline-command.sh")
 
         return FileManager.default.fileExists(atPath: swiftScript.path) &&
-               FileManager.default.fileExists(atPath: bashScript.path)
+               FileManager.default.fileExists(atPath: bashScript.path) &&
+               installedBashScriptIsOurs(orMissing: false)
+    }
+
+    /// Whether `~/.claude/statusline-command.sh` is this app's script. A missing
+    /// file answers `orMissing`.
+    private func installedBashScriptIsOurs(orMissing: Bool) -> Bool {
+        let bashScript = Constants.ClaudePaths.claudeDirectory
+            .appendingPathComponent("statusline-command.sh")
+        guard let content = try? String(contentsOf: bashScript, encoding: .utf8) else {
+            return orMissing && !FileManager.default.fileExists(atPath: bashScript.path)
+        }
+        return Self.isAppScript(content)
+    }
+
+    /// Whether Claude Code's settings.json currently runs a `statusline-command.sh`.
+    var isEnabledInClaudeSettings: Bool {
+        let settingsPath = Constants.ClaudePaths.claudeDirectory.appendingPathComponent("settings.json")
+        guard let data = try? Data(contentsOf: settingsPath),
+              let settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return Self.statusLineUsesOurScript(settings)
+    }
+
+    /// Whether a settings.json statusLine command runs `statusline-command.sh`.
+    /// The user's own statusline can live at that path too, so callers also
+    /// check the script's content with `isAppScript`.
+    static func statusLineUsesOurScript(_ settings: [String: Any]) -> Bool {
+        guard let statusLine = settings["statusLine"] as? [String: Any],
+              let command = statusLine["command"] as? String else {
+            return false
+        }
+        return command.contains("statusline-command.sh")
     }
 
     /// Writes usage data to cache file for fast bash script access
@@ -1125,7 +1236,11 @@ ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
 
     /// Updates scripts only if already installed (installation is optional)
     func updateScriptsIfInstalled() throws {
-        guard isInstalled else { return }
+        // Script files left behind after the statusline was reset, or a statusline
+        // of the user's own at the same path, are not touched: refreshing them would
+        // put the session key back on disk for a feature that is switched off, or
+        // replace the user's script (#191, #321).
+        guard isInstalled, isEnabledInClaudeSettings else { return }
         try installScripts(injectSessionKey: true)
     }
 
