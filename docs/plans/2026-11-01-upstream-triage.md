@@ -19,7 +19,7 @@ Work order:
 3. Auto-start: fix #334 first, then the new controls. Write a short design doc before coding, since PR #349 overlaps.
 4. The rest of phase 2, then phase 3.
 
-## Status (updated 2026-11-02)
+## Status (updated 2026-11-16)
 
 Done and merged into this fork's `main` (fork PRs #1 to #7, #9, and #10):
 
@@ -32,9 +32,19 @@ Done and merged into this fork's `main` (fork PRs #1 to #7, #9, and #10):
 - #334 empty auto-start chats (#9). The temporary conversation is deleted on failure too, chat requests send browser headers, and attempts are limited per profile (3 attempts 5 and 10 minutes apart, then a 5 hour pause, stored in UserDefaults). Chosen over upstream PR #349; its weekly-limit gate moves into the controls design. Not tested against a live claude.ai account.
 - Monthly spend display for spend-limited accounts (Enterprise seats) (#10). Design `2026-11-02-monthly-spend-design.md`, plan `2026-11-02-monthly-spend-plan.md`. #356 (Ultra, no 5-hour limit) is still open: a Max account with no session running also returns `five_hour: null`, so a single response cannot tell the two apart.
 
-In review: auto-start schedules, branch `feat/auto-start-schedules`. Per-profile weekday and weekend hours, with windows opened by running `claude -p` under the profile's Claude Code login; the claude.ai chat path is removed. Design `2026-11-02-auto-start-schedules-design.md`, plan `2026-11-02-auto-start-schedules-plan.md`.
+Auto-start schedules merged as fork PR #12.
 
-Next: the statusline pair, #321 (launch overwrites the installed scripts) and #322 (usage segment dropped when the cache is older than 300 s).
+Upstream is active again and released v3.4.0 on 2026-11-13. Its Homebrew cask, left installed from before the fork, replaced `/Applications/Claude Usage.app` on 2026-11-14; the cask and tap were removed on 2026-11-16. A review of v3.3.0..v3.4.0 split the useful upstream changes into batches:
+
+1. Merged as fork PR #19: #319 cf_clearance, #266 organization selection, #333 macOS 26 backgrounds, #316 compact dot spacing, 429 with only weekly headers. Upstream's `hasSessionLimit` is not ported: it treats an idle Max account (`five_hour: null`, weekly-only `limits`) as a plan without a session limit.
+2. Statusline, protection only (Devon does not use the app's statusline; Devon's own lives at `~/.claude/statusline-command.sh`): #321 and #191, plus guards so the app never replaces or unhooks a statusline of the user's own. #322 (stale fallback) and the `five_hour: null` throw in the fetch script are skipped.
+3. Next: menu bar recolor (PR #315), single instance (PR #344, decide whether to detect the upstream bundle ID too), used/remaining labels (#269), "no limits reported" (#312), Codex Pro (#342), lone Codex profile (#335).
+4. Notch HUD fixes (PR #343, PR #284), all 8 commits apply cleanly.
+5. Weekend pace, Fable weekly metric, prompt-cache segment.
+
+Later: Keep Awake, desktop widgets, Persian. Skipped: sponsor placement, macOS 13 target, upstream's monthly spend design (#287, #325).
+
+Max 20x is Ultra (same plan), so matching `max_20x` as a plan without a session limit is correct.
 
 Open loose ends:
 
