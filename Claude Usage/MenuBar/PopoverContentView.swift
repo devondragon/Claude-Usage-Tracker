@@ -737,7 +737,7 @@ struct SmartUsageDashboard: View {
             // would always read 0% with a placeholder reset time.
             if !usage.isSpendLimited && !usage.planHasNoSessionLimit {
                 UsageRow(
-                    title: "menubar.session_usage".localized,
+                    title: (showRemainingPercentage ? "menubar.session_remaining" : "menubar.session_usage").localized,
                     subtitle: "menubar.5_hour_window".localized,
                     usedPercentage: usage.effectiveSessionPercentage,
                     showRemaining: showRemainingPercentage,
@@ -945,6 +945,15 @@ struct UsageRow: View {
         theme.statusColor(statusLevel)
     }
 
+    private var percentageLabel: String {
+        (showRemaining ? "menubar.remaining" : "menubar.used").localized
+    }
+
+    /// The percentage with its "used" / "remaining" word (#269).
+    var percentageText: String {
+        "\(Int(displayPercentage))% \(percentageLabel)"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             // Title row with percentage
@@ -973,8 +982,10 @@ struct UsageRow: View {
                 ThemedPercent(
                     value: Int(displayPercentage),
                     color: statusColor,
-                    isCritical: statusLevel == .critical
+                    isCritical: statusLevel == .critical,
+                    suffix: percentageLabel
                 )
+                .accessibilityLabel(percentageText)
             }
 
             // Progress bar

@@ -452,6 +452,9 @@ struct ThemedPercent: View {
     let value: Int
     let color: Color
     let isCritical: Bool
+    /// A word after the number ("used", "remaining"), drawn smaller so the
+    /// row title keeps its room (#269).
+    var suffix: String? = nil
     @State private var pulse = false
 
     private var effect: AppTheme.CriticalEffect {
@@ -497,9 +500,15 @@ struct ThemedPercent: View {
     }
 
     private func text(color: Color) -> some View {
-        Text("\(value)%")
+        var label = Text("\(value)%")
             .font(theme.numberFont.font(size: theme.percentSize, weight: .semibold))
+        if let suffix {
+            label = label + Text(" " + theme.label(suffix))
+                .font(theme.detailFont.font(size: 10, weight: .medium))
+        }
+        return label
             .foregroundColor(color)
+            .lineLimit(1)
     }
 }
 
