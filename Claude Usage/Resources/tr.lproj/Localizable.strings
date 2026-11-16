@@ -1129,3 +1129,9 @@
 "theme.desc.night_city" = "Kesik köşeler ve bölümlü çubuklarla neon sarı, camgöbeği ve kırmızı.";
 "theme.desc.phosphor" = "Tarama çizgileri ve blok çubuklarıyla kehribar renkli bir CRT terminali.";
 "theme.footnote" = "Sistem Ayarları'nda Hareketi Azalt açıkken animasyonlar kapalıdır.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "Orijinal Claude Usage Tracker çalışıyor";
+"duplicate.upstream_message" = "Bu uygulamanın yanında başka bir Claude Usage Tracker derlemesi çalışıyor. İkisi de aynı hesapları sorguluyor ve aynı çentik kancası bağlantı noktasını kullanıyor, bu yüzden birbirlerini etkileyebilirler. Bir güncellemeden sonra geri geldiyse şununla kaldırın: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Diğer uygulamadan çık";
+"duplicate.keep_both" = "İkisini de tut";

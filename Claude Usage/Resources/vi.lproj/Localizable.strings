@@ -1135,3 +1135,9 @@
 "theme.desc.night_city" = "Vàng neon, lục lam và đỏ với góc vát và thanh phân đoạn.";
 "theme.desc.phosphor" = "Một màn hình CRT màu hổ phách với đường quét và thanh khối.";
 "theme.footnote" = "Hoạt ảnh bị tắt khi Giảm chuyển động đang bật trong Cài đặt hệ thống.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "Claude Usage Tracker gốc đang chạy";
+"duplicate.upstream_message" = "Một bản dựng khác của Claude Usage Tracker đang chạy song song với ứng dụng này. Cả hai cùng truy vấn các tài khoản giống nhau và dùng cùng cổng hook của notch nên có thể xung đột. Nếu nó quay lại sau khi cập nhật, hãy gỡ bằng: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Thoát ứng dụng kia";
+"duplicate.keep_both" = "Giữ cả hai";

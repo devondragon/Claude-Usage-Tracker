@@ -1123,3 +1123,9 @@
 "theme.desc.night_city" = "霓虹黃、青色與紅色，搭配切角面板與分段進度列。";
 "theme.desc.phosphor" = "帶有掃描線與方塊進度列的琥珀色 CRT 終端機。";
 "theme.footnote" = "在系統設定中開啟「減少動態效果」時，動畫會關閉。";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "原版 Claude Usage Tracker 正在執行";
+"duplicate.upstream_message" = "另一個 Claude Usage Tracker 版本正與此 App 同時執行。兩者會查詢相同的帳號並使用相同的瀏海 Hook 連接埠，可能互相干擾。如果它在更新後又回來了，請用以下指令移除：brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "結束另一個 App";
+"duplicate.keep_both" = "兩者都保留";

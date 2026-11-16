@@ -1118,3 +1118,9 @@
 "theme.desc.night_city" = "Amarillo neón, cian y rojo con esquinas cortadas y barras segmentadas.";
 "theme.desc.phosphor" = "Un terminal CRT ámbar con líneas de barrido y barras de bloques.";
 "theme.footnote" = "Las animaciones se desactivan mientras Reducir movimiento esté activado en Ajustes del Sistema.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "El Claude Usage Tracker original se está ejecutando";
+"duplicate.upstream_message" = "Otra compilación de Claude Usage Tracker se está ejecutando junto a esta. Ambas consultan las mismas cuentas y usan el mismo puerto de hooks del notch, por lo que pueden interferir. Si volvió tras una actualización, elimínala con: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "Salir de la otra app";
+"duplicate.keep_both" = "Mantener ambas";

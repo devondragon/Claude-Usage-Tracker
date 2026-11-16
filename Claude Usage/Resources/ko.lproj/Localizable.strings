@@ -1146,3 +1146,9 @@
 "theme.desc.night_city" = "네온 노랑, 청록, 빨강에 모서리를 자른 패널과 분할 막대.";
 "theme.desc.phosphor" = "주사선과 블록 막대가 있는 호박색 CRT 터미널.";
 "theme.footnote" = "시스템 설정에서 동작 줄이기가 켜져 있으면 애니메이션이 꺼집니다.";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "원래 Claude Usage Tracker가 실행 중입니다";
+"duplicate.upstream_message" = "이 앱과 함께 다른 빌드의 Claude Usage Tracker가 실행 중입니다. 두 앱이 같은 계정을 조회하고 같은 노치 훅 포트를 사용하므로 서로 간섭할 수 있습니다. 업데이트 후 다시 설치되었다면 다음 명령으로 제거하세요: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "다른 앱 종료";
+"duplicate.keep_both" = "둘 다 유지";

@@ -1137,3 +1137,9 @@
 "theme.desc.night_city" = "ネオンイエロー、シアン、レッドに、角を落としたパネルと分割バー。";
 "theme.desc.phosphor" = "走査線とブロックバーのアンバー色の CRT ターミナル。";
 "theme.footnote" = "システム設定で「視差効果を減らす」がオンの間はアニメーションがオフになります。";
+
+/* Another copy of the app running */
+"duplicate.upstream_title" = "オリジナルの Claude Usage Tracker が実行中です";
+"duplicate.upstream_message" = "このアプリと並行して別のビルドの Claude Usage Tracker が実行されています。両方が同じアカウントを取得し、同じノッチフックのポートを使うため、干渉する可能性があります。アップデート後に戻ってきた場合は、次のコマンドで削除してください: brew uninstall --cask claude-usage-tracker";
+"duplicate.quit_other" = "もう一方のアプリを終了";
+"duplicate.keep_both" = "両方とも残す";
