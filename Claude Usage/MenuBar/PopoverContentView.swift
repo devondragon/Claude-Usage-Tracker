@@ -732,10 +732,21 @@ struct SmartUsageDashboard: View {
                 )
             }
 
+            // A plan that reports no limits at all (the free plan) would show
+            // 0% bars that look like readings (#312).
+            if usage.hasNoUsageWindows && !usage.isSpendLimited {
+                Text(theme.label("popover.no_limits_reported".localized))
+                    .font(theme.detailFont.font(size: 11, weight: .regular))
+                    .foregroundColor(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+            }
+
             // Primary: Session Usage. Not shown for spend-limited accounts, or
             // for plans with no 5-hour limit (Max 20x / Ultra), where the row
             // would always read 0% with a placeholder reset time.
-            if !usage.isSpendLimited && !usage.planHasNoSessionLimit {
+            if !usage.hasNoUsageWindows && !usage.planHasNoSessionLimit {
                 UsageRow(
                     title: (showRemainingPercentage ? "menubar.session_remaining" : "menubar.session_usage").localized,
                     subtitle: "menubar.5_hour_window".localized,
@@ -764,7 +775,7 @@ struct SmartUsageDashboard: View {
             }
 
             // All Models (Weekly)
-            if !usage.isSpendLimited {
+            if !usage.hasNoUsageWindows {
                 UsageRow(
                     title: "menubar.all_models".localized,
                     tag: "menubar.weekly".localized,
