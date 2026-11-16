@@ -28,4 +28,33 @@ final class StatuslineScriptProtectionTests: XCTestCase {
     func testUnknownHistoryCountsAsEdited() {
         XCTAssertTrue(StatuslineService.isUserEdited(installed: "echo anything\n", lastWrittenFingerprint: nil))
     }
+
+    // MARK: - A statusline of the user's own at the same path
+
+    @MainActor
+    func testShippedScriptIsRecognizedAsTheApps() {
+        XCTAssertTrue(StatuslineService.isAppScript(StatuslineService.shared.bashScript))
+    }
+
+    func testUsersOwnScriptIsNotTheApps() {
+        let own = "#!/bin/bash\n# Powerline-styled status line\ninput=$(cat)\nprintf '%s' \"$input\" | jq -r .model\n"
+        XCTAssertFalse(StatuslineService.isAppScript(own))
+    }
+
+    func testSettingsCommandDetection() {
+        XCTAssertTrue(StatuslineService.statusLineUsesOurScript(
+            ["statusLine": ["type": "command", "command": "bash /Users/me/.claude/statusline-command.sh"]]
+        ))
+        XCTAssertFalse(StatuslineService.statusLineUsesOurScript(
+            ["statusLine": ["type": "command", "command": "\"/Users/me/.claude-tribe/hooks/tribe-statusline.sh\""]]
+        ))
+        XCTAssertFalse(StatuslineService.statusLineUsesOurScript([:]))
+    }
+
+    func testBackupNamesAreTimestamped() {
+        let first = StatuslineService.backupFileName(for: Date(timeIntervalSince1970: 1_800_000_000))
+        let second = StatuslineService.backupFileName(for: Date(timeIntervalSince1970: 1_800_000_001))
+        XCTAssertTrue(first.hasPrefix("statusline-command.sh.backup-"))
+        XCTAssertNotEqual(first, second)
+    }
 }
