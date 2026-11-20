@@ -195,8 +195,12 @@ class ProfileManager: ObservableObject {
     /// target's saved CLI login is dead). With `cancelIfLoginExpired: false` a dead login does
     /// not cancel: the profile is still activated, but its snapshot is not written to the
     /// keychain (used when the active profile was deleted and something must take its place).
+    ///
+    /// With `interactive: true` (a switch the user started), a dead login asks whether to
+    /// switch anyway without applying the snapshot, so the profile can be re-linked with
+    /// `/login` (#363). Programmatic switches such as auto-switch cancel as before.
     @discardableResult
-    func activateProfile(_ id: UUID, cancelIfLoginExpired: Bool = true) async -> Bool {
+    func activateProfile(_ id: UUID, cancelIfLoginExpired: Bool = true, interactive: Bool = false) async -> Bool {
         guard !switchingSemaphore else {
             LoggingService.shared.log("Profile switch already in progress, ignoring")
             return false
@@ -293,6 +297,14 @@ class ProfileManager: ObservableObject {
                 }
                 if adopted {
                     applySnapshot = false
+                } else if cancelIfLoginExpired, interactive,
+                          ErrorPresenter.shared.confirmExpiredLoginSwitch(profileName: updatedProfile.name) {
+                    // #363: the cancel below tells the user to run /login with the target's
+                    // account, which cannot be done while another profile is active. A switch
+                    // the user started can go ahead WITHOUT the dead snapshot: the live login
+                    // stays as it is, and the target becomes active so it can be re-linked.
+                    LoggingService.shared.logError("Activating '\(updatedProfile.name)' without its saved CLI login (user chose to switch anyway); the live login was left untouched")
+                    applySnapshot = false
                 } else if cancelIfLoginExpired {
                     LoggingService.shared.logError("Switch to '\(updatedProfile.name)' cancelled: its saved CLI login could not be refreshed, and the live login was left untouched")
                     // The resync above may have saved rotated tokens for the profile we are
@@ -304,11 +316,14 @@ class ProfileManager: ObservableObject {
                     }
                     switchingSemaphore = false
                     isSwitchingProfile = false
-                    ErrorPresenter.shared.showAlert(for: AppError(
-                        code: .providerAuthRefreshFailed,
-                        message: String(format: "error.cli_login_expired".localized, updatedProfile.name),
-                        recoverySuggestion: String(format: "error.cli_login_expired_suggestion".localized, updatedProfile.name, updatedProfile.name)
-                    ))
+                    // An interactive switch already showed the confirmation; the user cancelled it.
+                    if !interactive {
+                        ErrorPresenter.shared.showAlert(for: AppError(
+                            code: .providerAuthRefreshFailed,
+                            message: String(format: "error.cli_login_expired".localized, updatedProfile.name),
+                            recoverySuggestion: String(format: "error.cli_login_expired_suggestion".localized, updatedProfile.name, updatedProfile.name)
+                        ))
+                    }
                     return false
                 } else {
                     LoggingService.shared.logError("Activating '\(updatedProfile.name)' without its saved CLI login (could not be refreshed); the live login was left untouched")

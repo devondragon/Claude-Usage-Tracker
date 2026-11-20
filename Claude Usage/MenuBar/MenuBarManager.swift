@@ -1682,7 +1682,7 @@ class MenuBarManager: NSObject, ObservableObject {
         let nextProfile = profiles[nextIndex]
 
         Task {
-            await profileManager.activateProfile(nextProfile.id)
+            await profileManager.activateProfile(nextProfile.id, interactive: true)
         }
     }
 
