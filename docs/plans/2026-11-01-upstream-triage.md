@@ -19,7 +19,7 @@ Work order:
 3. Auto-start: fix #334 first, then the new controls. Write a short design doc before coding, since PR #349 overlaps.
 4. The rest of phase 2, then phase 3.
 
-## Status (updated 2026-11-16)
+## Status (updated 2026-11-20)
 
 Done and merged into this fork's `main` (fork PRs #1 to #7, #9, and #10):
 
@@ -38,9 +38,16 @@ Upstream is active again and released v3.4.0 on 2026-11-13. Its Homebrew cask, l
 
 1. Merged as fork PR #19: #319 cf_clearance, #266 organization selection, #333 macOS 26 backgrounds, #316 compact dot spacing, 429 with only weekly headers. Upstream's `hasSessionLimit` is not ported: it treats an idle Max account (`five_hour: null`, weekly-only `limits`) as a plan without a session limit.
 2. Statusline, protection only (Devon does not use the app's statusline; Devon's own lives at `~/.claude/statusline-command.sh`): #321 and #191, plus guards so the app never replaces or unhooks a statusline of the user's own. #322 (stale fallback) and the `five_hour: null` throw in the fetch script are skipped.
-3. Next: menu bar recolor (PR #315), single instance (PR #344, decide whether to detect the upstream bundle ID too), used/remaining labels (#269), "no limits reported" (#312), Codex Pro (#342), lone Codex profile (#335).
-4. Notch HUD fixes (PR #343, PR #284), all 8 commits apply cleanly.
-5. Weekend pace, Fable weekly metric, prompt-cache segment.
+3. Merged as fork PR #21: menu bar recolor (PR #315), single instance plus a warning when the upstream app is running (PR #344), used/remaining labels (#269), "no limits reported" (#312), Codex Pro (#342), lone Codex profile (#335).
+4. Merged as fork PR #23: notch HUD fixes (PR #343, PR #284), 8 commits cherry-picked unchanged. Existing http `SessionStart` hooks now report as legacy and offer a reinstall.
+5. Next: weekend pace (PR #327), Fable weekly metric (#318), prompt-cache statusline segment (PR #332). Upstream #367 (working hours for pace) overlaps weekend pace.
+
+Upstream after v3.4.0 (reviewed 2026-11-20; no new commits on `main` or `next-release`):
+
+- PR #364 (#363, a profile with a dead saved login could never be switched to and re-linked): merged as fork PR #22, with the fork's cancel-path reload kept. A switch the user starts asks "Switch Anyway?"; auto-switch still cancels.
+- #366 (VM_ALLOCATE memory growth, about 900 MB after 6 days): not seen in the fork. After 14 hours the `/Applications` copy had an 85 MB footprint and no growing VM_ALLOCATE regions. Check again after several days of uptime.
+- PR #365 (multi-team tracking, +13,351 lines, mostly `.lean/` agent files, never built in Xcode): skipped.
+- #362 (two accounts show the same usage) and #367 have no PRs.
 
 Later: Keep Awake, desktop widgets, Persian. Skipped: sponsor placement, macOS 13 target, upstream's monthly spend design (#287, #325).
 
@@ -50,12 +57,11 @@ Open loose ends:
 
 - CI runs on the fork now (first runs on PR #9, 2026-11-02).
 - Hosted tests launched the real app with real settings (menu bar items, refresh timers, API calls). Fixed on `feat/monthly-spend` with an XCTest guard in `AppDelegate`.
-- Not exercised by hand yet: switching between profiles (#5), and linking, unlinking and switching linked profiles (#7).
+- Not exercised by hand yet: switching between profiles (#5), linking, unlinking and switching linked profiles (#7), the "Switch Anyway?" prompt (#22), and the notch HUD with live sessions (#23).
 - Devon's Tribe and Lumena profiles have no credentials in the fork. Link them in Settings > CLI Account > Claude Code accounts.
 - History files (12 to 27 MB) are pruned the first time a snapshot is recorded, not at launch. Backups were taken on 2026-11-01 in that session's scratchpad.
 - The login keychain holds about 5,229 `Claude Code-credentials-<hash>` entries left by temporary config dirs. Cleanup deletes Claude Code's items, so it needs Devon's go-ahead.
 - `ClaudeCodeSyncService` Keychain reads run on the main actor, and each can block for up to 3 s when `security` hangs. Move them off the main actor in their own PR.
-- `MultiProfileBarValuesTests.testNormalProfile` depends on the clock and fails once real time passes 2026-11-02T19:27Z. Fix it in its own PR.
 - Devon's daily copy is `/Applications/Claude Usage.app`, installed from `main` with `scripts/install-local.sh` (2026-11-02). The `Claude-Usage-Tracker-local` worktree and the upstream app are gone (upstream app moved to the Trash).
 
 ## How to take upstream PRs
